@@ -28,7 +28,7 @@ router.get('/files', getFiles);
 router.get('/download', downloadFile);
 
 // Admin actions - Keeping verification or making it optional for now
-router.post('/upload', upload.single('file'), uploadFile);
+router.post('/upload', upload.array('files'), uploadFile);
 router.post('/create-folder', createFolder);
 router.delete('/delete', deleteFile);
 

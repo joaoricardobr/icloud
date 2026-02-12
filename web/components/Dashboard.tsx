@@ -100,6 +100,46 @@ export default function Dashboard() {
         }
     }, []);
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        const formData = new FormData();
+        Array.from(files).forEach(file => {
+            formData.append('files', file);
+        });
+        formData.append('path', currentPath);
+
+        setLoading(true);
+        try {
+            await api.post('/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            fetchData(currentPath);
+        } catch (err) {
+            console.error("Upload failed", err);
+        } finally {
+            setLoading(false);
+            setShowNewMenu(false);
+        }
+    };
+
+    const handleCreateFolder = async () => {
+        const folderName = prompt("Nome da pasta:");
+        if (!folderName) return;
+
+        setLoading(true);
+        try {
+            await api.post('/create-folder', { folderName, parentPath: currentPath });
+            fetchData(currentPath);
+        } catch (err) {
+            console.error("Failed to create folder", err);
+        } finally {
+            setLoading(false);
+            setShowNewMenu(false);
+        }
+    };
+
     useEffect(() => {
         fetchData();
     }, [fetchData]);
@@ -231,13 +271,53 @@ export default function Dashboard() {
                         />
                     </div>
 
-                    <button
-                        onClick={() => setShowNewMenu(!showNewMenu)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white p-3.5 md:px-6 md:py-3.5 rounded-2xl flex items-center gap-3 transition-all font-bold text-sm shadow-lg shadow-blue-500/20 active:scale-95"
-                    >
-                        <Plus size={20} />
-                        <span className="hidden md:inline">Criar Novo</span>
-                    </button>
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowNewMenu(!showNewMenu)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white p-3.5 md:px-6 md:py-3.5 rounded-2xl flex items-center gap-3 transition-all font-bold text-sm shadow-lg shadow-blue-500/20 active:scale-95"
+                        >
+                            <Plus size={20} />
+                            <span className="hidden md:inline">Criar Novo</span>
+                        </button>
+
+                        <AnimatePresence>
+                            {showNewMenu && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    className="absolute right-0 mt-3 w-56 bg-white border border-zinc-100 rounded-[24px] shadow-2xl shadow-black/5 p-2 z-50 overflow-hidden"
+                                >
+                                    <button
+                                        onClick={() => document.getElementById('file-upload')?.click()}
+                                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 rounded-xl transition-all text-sm font-bold text-zinc-600"
+                                    >
+                                        <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+                                            <Upload size={16} />
+                                        </div>
+                                        Upload de Arquivos
+                                    </button>
+                                    <button
+                                        onClick={handleCreateFolder}
+                                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 rounded-xl transition-all text-sm font-bold text-zinc-600"
+                                    >
+                                        <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
+                                            <FolderPlus size={16} />
+                                        </div>
+                                        Nova Pasta
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    <input
+                        id="file-upload"
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={handleFileUpload}
+                    />
 
                     <button
                         onClick={() => setShowRightPanel(!showRightPanel)}
@@ -521,7 +601,7 @@ export default function Dashboard() {
                     <MediaPlayer
                         file={previewFile}
                         onClose={() => setPreviewFile(null)}
-                        apiUrl={process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/cloud"}
+                        apiUrl={process.env.NEXT_PUBLIC_API_URL || "https://cadillac-editions-transaction-plymouth.trycloudflare.com/api/cloud"}
                     />
                 )}
             </AnimatePresence>

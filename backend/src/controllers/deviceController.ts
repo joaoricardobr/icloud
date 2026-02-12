@@ -147,10 +147,14 @@ export const getFiles = async (req: Request, res: Response) => {
 };
 
 export const uploadFile = (req: Request, res: Response) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
     }
-    res.json({ message: 'File uploaded successfully', file: req.file.filename });
+    res.json({
+        message: `${files.length} file(s) uploaded successfully`,
+        files: files.map(f => f.filename)
+    });
 };
 
 export const downloadFile = (req: Request, res: Response) => {
