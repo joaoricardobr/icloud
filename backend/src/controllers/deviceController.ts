@@ -17,10 +17,11 @@ const validatePath = (targetPath: string) => {
 
 // File extension maps
 const EXTENSIONS = {
-    imagens: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
-    videos: ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.flv'],
-    musicas: ['.mp3', '.wav', '.flac', '.m4a', '.ogg'],
-    documentos: ['.pdf', '.doc', '.docx', '.txt', '.xlsx', '.pptx', '.pdf']
+    imagens: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tiff'],
+    videos: ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.flv', '.webm', '.m4v'],
+    musicas: ['.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac', '.wma'],
+    documentos: ['.pdf', '.doc', '.docx', '.txt', '.xlsx', '.pptx', '.csv', '.rtf'],
+    arquivos: ['.zip', '.rar', '.7z', '.tar', '.gz', '.apk', '.exe', '.deb', '.iso']
 };
 
 const getFilesByCategory = (dir: string, category: keyof typeof EXTENSIONS, depth = 0): any[] => {
@@ -132,7 +133,13 @@ export const getFiles = async (req: Request, res: Response) => {
         let currentDisk = relevantDisks.find(d => absoluteTarget.startsWith(d.mount)) || relevantDisks[0];
 
         res.json({
-            files: metadata,
+            files: metadata.map(f => ({
+                ...f,
+                hasThumbnail: !f.isDirectory && (
+                    EXTENSIONS.imagens.includes(path.extname(f.name).toLowerCase()) ||
+                    EXTENSIONS.videos.includes(path.extname(f.name).toLowerCase())
+                )
+            })),
             stats: {
                 total: currentDisk?.size,
                 used: currentDisk?.used,
@@ -208,6 +215,56 @@ export const createFolder = (req: Request, res: Response) => {
 
         fs.mkdirSync(targetDir, { recursive: true });
         res.json({ message: 'Folder created successfully' });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+import sharp from 'sharp';
+import ffmpeg from 'fluent-ffmpeg';
+
+export const getThumbnail = async (req: Request, res: Response) => {
+    try {
+        const filePath = req.query.path as string;
+        if (!filePath) return res.status(400).json({ error: 'Path required' });
+
+        const fullPath = validatePath(filePath);
+        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found' });
+
+        const ext = path.extname(fullPath).toLowerCase();
+
+        if (EXTENSIONS.imagens.includes(ext)) {
+            const buffer = await sharp(fullPath)
+                .resize(200, 200, { fit: 'cover' })
+                .toFormat('jpeg')
+                .toBuffer();
+            res.set('Content-Type', 'image/jpeg');
+            return res.send(buffer);
+        }
+
+        if (EXTENSIONS.videos.includes(ext)) {
+            const thumbName = `thumb-${path.basename(fullPath)}.jpg`;
+            const thumbPath = path.join('/tmp', thumbName);
+
+            ffmpeg(fullPath)
+                .screenshots({
+                    timestamps: ['00:00:01'],
+                    filename: thumbName,
+                    folder: '/tmp',
+                    size: '200x200'
+                })
+                .on('end', () => {
+                    res.sendFile(thumbPath, () => {
+                        if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
+                    });
+                })
+                .on('error', (err) => {
+                    res.status(500).json({ error: 'Thumbnail failed' });
+                });
+            return;
+        }
+
+        res.status(400).json({ error: 'Unsupported thumbnail type' });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }

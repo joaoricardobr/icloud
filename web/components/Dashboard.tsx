@@ -1,37 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import {
-    Folder,
-    File,
-    Search,
-    Upload,
-    Plus,
-    HardDrive,
-    Clock,
-    Settings,
-    LogOut,
-    ChevronRight,
-    MoreVertical,
-    Download,
-    Trash2,
-    LayoutGrid,
-    List,
-    User,
-    Star,
-    Info,
-    ArrowUpRight,
-    FileText,
-    Image as ImageIcon,
-    Video,
-    Music,
-    FolderPlus,
-    ArrowLeft,
-    X,
-    Share2,
-    Zap,
-    Bell
-} from "lucide-react";
+import { LayoutGrid, Search, Plus, Bell, HardDrive, Clock, Star, Trash2, Zap, Settings, ChevronRight, Folder, FileText, Image as ImageIcon, Video, Music, File, MoreVertical, X, Info, LogOut, FolderPlus, Upload, Archive, Smartphone } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
@@ -168,22 +138,37 @@ export default function Dashboard() {
 
     const getFileIcon = (file: FileItem) => {
         if (file.isDirectory) return <Folder className="w-full h-full fill-blue-500/20 text-blue-500" />;
+
+        // Show thumbnail if available
+        if (file.hasThumbnail) {
+            const thumbUrl = `${process.env.NEXT_PUBLIC_API_URL || "https://cadillac-editions-transaction-plymouth.trycloudflare.com/api/cloud"}/thumbnail?path=${encodeURIComponent(file.path)}`;
+            return (
+                <div className="w-full h-full rounded-lg overflow-hidden bg-zinc-100 flex items-center justify-center">
+                    <img src={thumbUrl} alt={file.name} className="w-full h-full object-cover" />
+                </div>
+            );
+        }
+
         const ext = file.name.split('.').pop()?.toLowerCase();
         switch (ext) {
             case 'pdf':
             case 'doc':
             case 'docx':
-            case 'txt': return <FileText className="w-full h-full" />;
+            case 'txt': return <FileText className="w-full h-full text-blue-500" />;
             case 'jpg':
             case 'jpeg':
             case 'png':
-            case 'gif': return <ImageIcon className="w-full h-full" />;
+            case 'gif': return <ImageIcon className="w-full h-full text-emerald-500" />;
             case 'mp4':
             case 'mkv':
-            case 'mov': return <Video className="w-full h-full" />;
+            case 'mov': return <Video className="w-full h-full text-red-500" />;
             case 'mp3':
-            case 'wav': return <Music className="w-full h-full" />;
-            default: return <File className="w-full h-full" />;
+            case 'wav': return <Music className="w-full h-full text-purple-500" />;
+            case 'zip':
+            case 'rar':
+            case '7z': return <Archive className="w-full h-full text-amber-500" />;
+            case 'apk': return <Smartphone className="w-full h-full text-green-500" />;
+            default: return <File className="w-full h-full text-zinc-400" />;
         }
     };
 
@@ -470,7 +455,7 @@ export default function Dashboard() {
                                         className="grid grid-cols-6 sm:grid-cols-12 px-4 py-4 items-center hover:bg-blue-50/20 rounded-2xl transition-all group cursor-pointer"
                                     >
                                         <div className="col-span-4 sm:col-span-4 flex items-center gap-4 pr-4">
-                                            <div className="w-9 h-9 flex items-center justify-center text-zinc-400 group-hover:text-blue-500 bg-zinc-50 group-hover:bg-blue-50 rounded-xl p-2 shrink-0 transition-colors">
+                                            <div className="w-10 h-10 flex items-center justify-center bg-zinc-50 group-hover:bg-blue-50 rounded-xl shrink-0 transition-colors overflow-hidden">
                                                 {getFileIcon(file)}
                                             </div>
                                             <span className="text-sm font-bold truncate text-zinc-700">{file.name}</span>

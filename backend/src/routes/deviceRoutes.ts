@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getFiles, uploadFile, downloadFile, deleteFile, createFolder } from '../controllers/deviceController';
+import { getFiles, uploadFile, downloadFile, deleteFile, createFolder, getThumbnail } from '../controllers/deviceController';
 import { verifyToken, verifyAdmin } from '../middleware/authMiddleware';
 import multer from 'multer';
 import path from 'path';
@@ -26,6 +26,7 @@ const upload = multer({
 
 router.get('/files', getFiles);
 router.get('/download', downloadFile);
+router.get('/thumbnail', getThumbnail);
 
 // Admin actions - Keeping verification or making it optional for now
 router.post('/upload', upload.array('files'), uploadFile);
