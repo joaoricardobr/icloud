@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { LayoutGrid, Search, Plus, Bell, HardDrive, Clock, Star, Trash2, Zap, Settings, ChevronRight, Folder, FileText, Image as ImageIcon, Video, Music, File, MoreVertical, X, Info, LogOut, FolderPlus, Upload, Archive, Smartphone, Download, List, User, ArrowUpRight, ArrowLeft, Share2, Loader2, CheckCircle2 } from "lucide-react";
+import { LayoutGrid, Search, Plus, Bell, HardDrive, Clock, Star, Trash2, Zap, Settings, ChevronRight, Folder, FileText, Image as ImageIcon, Video, Music, File, MoreVertical, X, Info, LogOut, FolderPlus, Upload, Archive, Smartphone, Download, List, User, ArrowUpRight, ArrowLeft, Share2, Loader2, CheckCircle2, UserPlus, FolderSearch, FolderCheck } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
@@ -53,6 +53,12 @@ export default function Dashboard() {
     const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadSummary, setUploadSummary] = useState<string[] | null>(null);
+
+    // Settings & User Mgmt State
+    const [customRoots, setCustomRoots] = useState<string[]>([]);
+    const [newRoot, setNewRoot] = useState('');
+    const [newUser, setNewUser] = useState({ email: '', password: '', displayName: '' });
+    const [settingsLoading, setSettingsLoading] = useState(false);
 
     const fetchData = useCallback(async (path = "", category: string | null = null) => {
         setLoading(true);
@@ -135,6 +141,48 @@ export default function Dashboard() {
     }, [fetchData]);
 
     const handleLogout = () => signOut(auth);
+
+    const fetchSettings = useCallback(async () => {
+        try {
+            const res = await api.get('/settings');
+            setCustomRoots(res.data.customRoots || []);
+        } catch (err) { console.error("Error fetching settings", err); }
+    }, []);
+
+    const saveSettings = async (roots: string[]) => {
+        setSettingsLoading(true);
+        try {
+            await api.post('/settings', { customRoots: roots });
+            setCustomRoots(roots);
+        } catch (err) { console.error("Error saving settings", err); }
+        finally { setSettingsLoading(false); }
+    };
+
+    const handleAddRoot = () => {
+        if (!newRoot || customRoots.includes(newRoot)) return;
+        saveSettings([...customRoots, newRoot]);
+        setNewRoot('');
+    };
+
+    const handleRemoveRoot = (root: string) => {
+        saveSettings(customRoots.filter(r => r !== root));
+    };
+
+    const handleCreateUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSettingsLoading(true);
+        try {
+            await api.post('/users', newUser);
+            alert('Usuário criado com sucesso e autorizado no Firebase!');
+            setNewUser({ email: '', password: '', displayName: '' });
+        } catch (err: any) {
+            alert('Erro ao criar usuário: ' + (err.response?.data?.error || err.message));
+        } finally { setSettingsLoading(false); }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'settings') fetchSettings();
+    }, [activeTab, fetchSettings]);
 
     const filteredFolders = useMemo(() =>
         activeCategory || activeTab === "computer" ? [] : files.filter(f => f.isDirectory && f.name.toLowerCase().includes(searchQuery.toLowerCase())),
@@ -571,6 +619,117 @@ export default function Dashboard() {
                                 )) : <p className="text-center text-zinc-400 py-20">Nenhum arquivo encontrado</p>}
                             </div>
                         </>
+                    )}
+
+                    {activeTab === 'settings' && (
+                        <div className="max-w-4xl mx-auto space-y-12 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="flex items-center gap-4 mb-10">
+                                <div className="w-16 h-16 bg-blue-600 text-white rounded-[24px] flex items-center justify-center shadow-xl shadow-blue-500/20">
+                                    <Settings size={32} />
+                                </div>
+                                <div>
+                                    <h1 className="text-3xl font-black text-blue-900 leading-tight">Painel de Configurações</h1>
+                                    <p className="text-zinc-400 font-bold uppercase tracking-widest text-xs">Gerencie pastas raiz e usuários</p>
+                                </div>
+                            </div>
+
+                            {/* Custom Roots Manager */}
+                            <section className="bg-white border border-zinc-100 p-8 rounded-[40px] shadow-2xl shadow-black/[0.02]">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <Search className="text-blue-600" size={24} />
+                                    <h3 className="text-xl font-bold">Pastas Raízes Inteligentes</h3>
+                                </div>
+                                <p className="text-sm text-zinc-500 mb-8 leading-relaxed">
+                                    Adicione nomes de pastas que o sistema deve rastrear e unir automaticamente em todos os seus discos.
+                                    Perfeito para pastas de projetos, backups ou coleções específicas.
+                                </p>
+
+                                <div className="flex gap-4 mb-8">
+                                    <input
+                                        type="text"
+                                        value={newRoot}
+                                        onChange={(e) => setNewRoot(e.target.value)}
+                                        placeholder="Ex: PROJETOS, BACKUP, CLIENTES..."
+                                        className="flex-1 bg-zinc-50 border-none rounded-2xl px-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-100 transition-all"
+                                    />
+                                    <button
+                                        onClick={handleAddRoot}
+                                        disabled={settingsLoading}
+                                        className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-50"
+                                    >
+                                        ADICIONAR
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {customRoots.map(root => (
+                                        <div key={root} className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100 group">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm">
+                                                    <CheckCircle2 size={20} />
+                                                </div>
+                                                <span className="font-extrabold text-zinc-800">{root}</span>
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemoveRoot(root)}
+                                                className="p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {customRoots.length === 0 && <p className="col-span-2 text-center text-zinc-400 py-6 font-bold uppercase tracking-widest text-[10px]">Nenhuma pasta customizada</p>}
+                                </div>
+                            </section>
+
+                            {/* User Management Form */}
+                            <section className="bg-zinc-900 text-white p-10 rounded-[40px] shadow-2xl shadow-blue-900/10 relative overflow-hidden">
+                                <div className="relative z-10">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <UserPlus className="text-blue-400" size={24} />
+                                        <h3 className="text-xl font-bold">Gerenciar Acesso (Usuários)</h3>
+                                    </div>
+                                    <p className="text-sm text-zinc-400 mb-8 leading-relaxed max-w-lg">
+                                        Crie novas contas de acesso para sua nuvem local. O usuário será criado no Firebase e terá acesso a todos os arquivos sincronizados.
+                                    </p>
+
+                                    <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <input
+                                            required
+                                            type="text"
+                                            placeholder="Nome Completo"
+                                            value={newUser.displayName}
+                                            onChange={(e) => setNewUser({ ...newUser, displayName: e.target.value })}
+                                            className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-500/50 transition-all text-white"
+                                        />
+                                        <input
+                                            required
+                                            type="email"
+                                            placeholder="E-mail"
+                                            value={newUser.email}
+                                            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                                            className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-500/50 transition-all text-white"
+                                        />
+                                        <input
+                                            required
+                                            type="password"
+                                            placeholder="Senha"
+                                            value={newUser.password}
+                                            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                                            className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-500/50 transition-all text-white"
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={settingsLoading}
+                                            className="bg-white text-zinc-900 rounded-2xl font-black text-sm hover:bg-zinc-100 transition-all shadow-xl active:scale-95 disabled:opacity-50"
+                                        >
+                                            {settingsLoading ? 'CRIANDO...' : 'CRIAR E AUTORIZAR'}
+                                        </button>
+                                    </form>
+                                </div>
+                                <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl" />
+                            </section>
+                        </div>
                     )}
                 </div>
             </main >

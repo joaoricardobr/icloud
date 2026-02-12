@@ -79,9 +79,15 @@ const getFilesByCategory = (dir: string, category: keyof typeof EXTENSIONS, dept
     return results.map(item => ({ ...item, diskLabel: path.basename(dir) === 'UPLOAD CLOUD' ? 'Cloud' : (dir.startsWith(os.homedir()) ? 'Pessoal' : path.basename(dir)) }));
 };
 
-const getHybridFiles = (folderName: string, disks: any[]): any[] => {
+const getHybridFiles = (folderName: string, disks: any[], customRoots: string[] = []): any[] => {
     let results: any[] = [];
     const normalizedFolderName = folderName.toLowerCase();
+
+    // Check if it's a standard one or a custom one
+    const isStandard = ['documentos', 'documents', 'vídeos', 'videos', 'imagens', 'pictures', 'música', 'music', 'downloads', 'transferências'].includes(normalizedFolderName);
+    const isCustom = customRoots.map(r => r.toLowerCase()).includes(normalizedFolderName);
+
+    if (!isStandard && !isCustom) return [];
 
     for (const disk of disks) {
         const potentialPaths = [
@@ -102,21 +108,23 @@ const getHybridFiles = (folderName: string, disks: any[]): any[] => {
 
         for (const p of potentialPaths) {
             if (fs.existsSync(p) && fs.statSync(p).isDirectory()) {
-                const items = fs.readdirSync(p);
-                results = results.concat(items.map(item => {
-                    const itemPath = path.join(p, item);
-                    try {
-                        const itemStat = fs.statSync(itemPath);
-                        return {
-                            name: item,
-                            path: itemPath,
-                            size: itemStat.size,
-                            isDirectory: itemStat.isDirectory(),
-                            modifiedAt: itemStat.mtime,
-                            diskLabel: disk.name
-                        };
-                    } catch (e) { return null; }
-                }).filter(i => i !== null));
+                try {
+                    const items = fs.readdirSync(p);
+                    results = results.concat(items.map(item => {
+                        const itemPath = path.join(p, item);
+                        try {
+                            const itemStat = fs.statSync(itemPath);
+                            return {
+                                name: item,
+                                path: itemPath,
+                                size: itemStat.size,
+                                isDirectory: itemStat.isDirectory(),
+                                modifiedAt: itemStat.mtime,
+                                diskLabel: disk.name
+                            };
+                        } catch (e) { return null; }
+                    }).filter(i => i !== null));
+                } catch (e) { continue; }
             }
         }
     }
@@ -127,6 +135,15 @@ export const getFiles = async (req: Request, res: Response) => {
     try {
         const queryPath = (req.query.path as string) || '';
         const category = req.query.category as string;
+
+        // Fetch custom roots from Firestore
+        let customRoots: string[] = [];
+        try {
+            const settingsDoc = await db.collection('settings').doc('global').get();
+            if (settingsDoc.exists) {
+                customRoots = settingsDoc.data()?.customRoots || [];
+            }
+        } catch (e) { console.error("Error fetching settings:", e); }
 
         // System info for panel - Get ALL physical disks
         const allDisks = await si.fsSize();
@@ -166,6 +183,8 @@ export const getFiles = async (req: Request, res: Response) => {
                 const searchPaths = [
                     disk.mount, // Root
                     path.join(disk.mount, 'UPLOAD CLOUD'),
+                    ...customRoots.map(cr => path.join(disk.mount, cr)),
+                    ...customRoots.map(cr => path.join(disk.mount, 'UPLOAD CLOUD', cr)),
                     path.join(disk.mount, 'Imagens'),
                     path.join(disk.mount, 'Vídeos'),
                     path.join(disk.mount, 'Música'),
@@ -238,12 +257,13 @@ export const getFiles = async (req: Request, res: Response) => {
                 }
             }).filter(item => item !== null);
 
-            // HYBRID LOGIC: If opening a standard folder name, also pull from other disks
+            // HYBRID LOGIC: If opening a standard folder name or custom root, pull from other disks
             const standardFolders = ['Documentos', 'Vídeos', 'Imagens', 'Música', 'Downloads', 'Transferências', 'Desktop', 'Pictures', 'Videos', 'Documents', 'Music'];
+            const allHybridFolders = [...standardFolders, ...customRoots];
             const currentFolderName = path.basename(targetDir);
 
-            if (standardFolders.includes(currentFolderName)) {
-                const hybridResults = getHybridFiles(currentFolderName, relevantDisks.filter(d => d.mount !== currentDisk?.mount));
+            if (allHybridFolders.some(f => f.toLowerCase() === currentFolderName.toLowerCase())) {
+                const hybridResults = getHybridFiles(currentFolderName, relevantDisks.filter(d => d.mount !== currentDisk?.mount), customRoots);
                 metadata = [...metadata, ...hybridResults];
             }
 
