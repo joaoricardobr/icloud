@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { LayoutGrid, Search, Plus, Bell, HardDrive, Clock, Star, Trash2, Zap, Settings, ChevronRight, Folder, FileText, Image as ImageIcon, Video, Music, File, MoreVertical, X, Info, LogOut, FolderPlus, Upload, Archive, Smartphone } from "lucide-react";
+import { LayoutGrid, Search, Plus, Bell, HardDrive, Clock, Star, Trash2, Zap, Settings, ChevronRight, Folder, FileText, Image as ImageIcon, Video, Music, File, MoreVertical, X, Info, LogOut, FolderPlus, Upload, Archive, Smartphone, Download, List, User, ArrowUpRight, ArrowLeft, Share2 } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
@@ -15,6 +15,7 @@ interface FileItem {
     size: number;
     isDirectory: boolean;
     modifiedAt: string;
+    hasThumbnail?: boolean;
 }
 
 interface Disk {
