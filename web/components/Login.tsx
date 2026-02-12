@@ -102,18 +102,7 @@ export default function Login() {
                         </button>
                     </form>
 
-                    <div className="relative my-8">
-                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-200 dark:border-zinc-800"></div></div>
-                        <div className="relative flex justify-center text-xs uppercase"><span className="bg-white dark:bg-[#15181C] px-3 text-zinc-400">Ou continuar com</span></div>
-                    </div>
-
-                    <button
-                        onClick={handleGoogleLogin}
-                        className="w-full bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-3 border border-zinc-200 dark:border-zinc-800 shadow-sm"
-                    >
-                        <Chrome className="w-5 h-5 text-blue-500" />
-                        Google
-                    </button>
+                    {/* Redacting "Ou continuar com" and Google button per user request */}
                 </div>
             </motion.div>
 

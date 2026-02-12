@@ -207,26 +207,27 @@ export default function Dashboard() {
                 <nav className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
                     <div className="space-y-1">
                         <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-5 mb-2">Principal</p>
-                        <SidebarItem icon={<LayoutGrid size={18} />} label="Início" active={activeTab === "dashboard"} onClick={() => { setActiveTab("dashboard"); fetchData(""); }} />
-                        <SidebarItem icon={<HardDrive size={18} />} label="Meu computador" active={activeTab === "computer"} onClick={() => setActiveTab("computer")} />
-                        <SidebarItem icon={<Clock size={18} />} label="Recentes" active={activeTab === "recent"} onClick={() => setActiveTab("recent")} />
-                        <SidebarItem icon={<Star size={18} />} label="Favoritos" active={activeTab === "favorites"} onClick={() => setActiveTab("favorites")} />
-                        <SidebarItem icon={<Trash2 size={18} />} label="Lixeira" active={activeTab === "trash"} onClick={() => setActiveTab("trash")} />
+                        <SidebarItem icon={<LayoutGrid size={18} />} label="Início" active={activeTab === "dashboard"} onClick={() => { setActiveTab("dashboard"); fetchData(""); setMobileMenuOpen(false); }} />
+                        <SidebarItem icon={<HardDrive size={18} />} label="Meu computador" active={activeTab === "computer"} onClick={() => { setActiveTab("computer"); setMobileMenuOpen(false); }} />
+                        <SidebarItem icon={<Clock size={18} />} label="Recentes" active={activeTab === "recent"} onClick={() => { setActiveTab("recent"); setMobileMenuOpen(false); }} />
+                        <SidebarItem icon={<Star size={18} />} label="Favoritos" active={activeTab === "favorites"} onClick={() => { setActiveTab("favorites"); setMobileMenuOpen(false); }} />
+                        <SidebarItem icon={<Trash2 size={18} />} label="Lixeira" active={activeTab === "trash"} onClick={() => { setActiveTab("trash"); setMobileMenuOpen(false); }} />
                     </div>
 
                     <div className="space-y-1 pt-4">
                         <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-5 mb-2">Categorias</p>
-                        <SidebarItem icon={<ImageIcon size={18} />} label="Imagens" active={activeCategory === "imagens"} onClick={() => fetchData("", "imagens")} />
-                        <SidebarItem icon={<Video size={18} />} label="Vídeos" active={activeCategory === "videos"} onClick={() => fetchData("", "videos")} />
-                        <SidebarItem icon={<Music size={18} />} label="Músicas" active={activeCategory === "musicas"} onClick={() => fetchData("", "musicas")} />
-                        <SidebarItem icon={<FileText size={18} />} label="Documentos" active={activeCategory === "documentos"} onClick={() => fetchData("", "documentos")} />
-                        <SidebarItem icon={<File size={18} />} label="Arquivos" active={activeCategory === "arquivos"} onClick={() => fetchData("", null)} />
+                        <SidebarItem icon={<ImageIcon size={18} />} label="Imagens" active={activeCategory === "imagens"} onClick={() => { fetchData("", "imagens"); setMobileMenuOpen(false); }} />
+                        <SidebarItem icon={<Video size={18} />} label="Vídeos" active={activeCategory === "videos"} onClick={() => { fetchData("", "videos"); setMobileMenuOpen(false); }} />
+                        <SidebarItem icon={<Music size={18} />} label="Músicas" active={activeCategory === "musicas"} onClick={() => { fetchData("", "musicas"); setMobileMenuOpen(false); }} />
+                        <SidebarItem icon={<FileText size={18} />} label="Documentos" active={activeCategory === "documentos"} onClick={() => { fetchData("", "documentos"); setMobileMenuOpen(false); }} />
+                        <SidebarItem icon={<File size={18} />} label="Arquivos" active={activeCategory === "arquivos"} onClick={() => { fetchData("", null); setMobileMenuOpen(false); }} />
                     </div>
 
                     <div className="space-y-1 pt-4">
                         <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-5 mb-2">Sistema</p>
-                        <SidebarItem icon={<Zap size={18} />} label="Limpeza" active={activeTab === "clean"} onClick={() => setActiveTab("clean")} />
-                        <SidebarItem icon={<Settings size={18} />} label="Configurações" active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
+                        <SidebarItem icon={<Zap size={18} />} label="Limpeza" active={activeTab === "clean"} onClick={() => { setActiveTab("clean"); setMobileMenuOpen(false); }} />
+                        <SidebarItem icon={<Settings size={18} />} label="Configurações" active={activeTab === "settings"} onClick={() => { setActiveTab("settings"); setMobileMenuOpen(false); }} />
+                        <SidebarItem icon={<LogOut size={18} />} label="Sair" onClick={handleLogout} />
                     </div>
                 </nav>
 
