@@ -1,0 +1,24 @@
+module.exports = {
+    apps: [
+        {
+            name: "clouddesk-backend",
+            cwd: "./backend",
+            script: "npm",
+            args: "start",
+            env: {
+                NODE_ENV: "production",
+                PORT: 3001
+            }
+        },
+        {
+            name: "clouddesk-frontend",
+            cwd: "./web",
+            script: "npm",
+            args: "start",
+            env: {
+                NODE_ENV: "production",
+                PORT: 3000
+            }
+        }
+    ]
+};
