@@ -19,6 +19,11 @@ module.exports = {
                 NODE_ENV: "production",
                 PORT: 3000
             }
+        },
+        {
+            name: "clouddesk-tunnel",
+            script: "./cloudflared",
+            args: "tunnel --url http://localhost:3001"
         }
     ]
 };
