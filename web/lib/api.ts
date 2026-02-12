@@ -8,6 +8,8 @@ const api = axios.create({
     },
 });
 
+console.log("🔌 CloudDesk API conectando em:", api.defaults.baseURL);
+
 api.interceptors.request.use(async (config: any) => {
     const user = auth.currentUser;
     if (user) {
