@@ -89,15 +89,30 @@ export const getFiles = async (req: Request, res: Response) => {
         let metadata: any[] = [];
 
         if (category && EXTENSIONS[category as keyof typeof EXTENSIONS]) {
-            // Only search in common data folders to avoid scanning system disks/partitions
-            const dataFolders = ['Imagens', 'Pictures', 'Vídeos', 'Videos', 'Música', 'Músicas', 'Music', 'Documentos', 'Documents', 'Transferências', 'Downloads'];
+            // Scan ALL relevant disks for categories
+            const categoryExts = EXTENSIONS[category as keyof typeof EXTENSIONS];
 
-            for (const folder of dataFolders) {
-                const folderPath = path.join(STORAGE_ROOT, folder);
-                if (fs.existsSync(folderPath)) {
-                    metadata = metadata.concat(getFilesByCategory(folderPath, category as keyof typeof EXTENSIONS));
+            for (const disk of relevantDisks) {
+                // Common folders to check on each disk
+                const searchPaths = [
+                    disk.mount, // Root
+                    path.join(disk.mount, 'UPLOAD CLOUD'),
+                    path.join(disk.mount, 'Imagens'),
+                    path.join(disk.mount, 'Vídeos'),
+                    path.join(disk.mount, 'Documentos'),
+                    path.join(disk.mount, 'Transferências'),
+                    path.join(disk.mount, 'Downloads'),
+                    path.join(disk.mount, 'Pictures'),
+                    path.join(disk.mount, 'Videos')
+                ];
+
+                for (const searchPath of searchPaths) {
+                    if (fs.existsSync(searchPath)) {
+                        metadata = metadata.concat(getFilesByCategory(searchPath, category as keyof typeof EXTENSIONS));
+                    }
+                    if (metadata.length > 2000) break;
                 }
-                if (metadata.length > 1000) break;
+                if (metadata.length > 2000) break;
             }
         } else {
             const targetDir = validatePath(queryPath);
@@ -155,9 +170,27 @@ export const getFiles = async (req: Request, res: Response) => {
 
 export const uploadFile = (req: Request, res: Response) => {
     const files = req.files as Express.Multer.File[];
+    const targetPath = (req.body.path as string) || '';
+
     if (!files || files.length === 0) {
         return res.status(400).json({ error: 'No files uploaded' });
     }
+
+    // Ensure UPLOAD CLOUD exists if it's a disk root
+    try {
+        if (targetPath && fs.existsSync(targetPath)) {
+            const stats = fs.statSync(targetPath);
+            if (stats.isDirectory()) {
+                const cloudFolder = path.join(targetPath, 'UPLOAD CLOUD');
+                if (!fs.existsSync(cloudFolder) && targetPath.length < 15) { // Likely a disk root like /mnt/disk1
+                    fs.mkdirSync(cloudFolder, { recursive: true });
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error creating UPLOAD CLOUD:", e);
+    }
+
     res.json({
         message: `${files.length} file(s) uploaded successfully`,
         files: files.map(f => f.filename)

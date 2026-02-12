@@ -648,24 +648,42 @@ export default function Dashboard() {
                                 </button>
 
                                 {stats?.allDisks.map((disk) => (
-                                    <button
-                                        key={disk.mount}
-                                        onClick={() => {
-                                            const dt = new DataTransfer();
-                                            uploadingFiles.forEach(f => dt.items.add(f));
-                                            handleFileUpload(dt.files, disk.mount);
-                                            setIsSelectingDestination(false);
-                                        }}
-                                        className="w-full flex items-center gap-4 p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-2xl transition-all border border-zinc-100 dark:border-zinc-800 group"
-                                    >
-                                        <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <HardDrive className="w-5 h-5" />
+                                    <div key={disk.mount} className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-800 text-zinc-500 rounded-lg flex items-center justify-center">
+                                                <HardDrive size={16} />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-xs">{disk.name}</p>
+                                                <p className="text-[10px] text-zinc-400">{formatBytes(disk.used)} de {formatBytes(disk.size)}</p>
+                                            </div>
                                         </div>
-                                        <div className="text-left">
-                                            <p className="font-bold text-sm">{disk.name}</p>
-                                            <p className="text-[10px] text-zinc-400">{formatBytes(disk.used)} de {formatBytes(disk.size)} usados</p>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    const dt = new DataTransfer();
+                                                    uploadingFiles.forEach(f => dt.items.add(f));
+                                                    handleFileUpload(dt.files, disk.mount);
+                                                    setIsSelectingDestination(false);
+                                                }}
+                                                className="py-2.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-[10px] font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-all text-zinc-600 dark:text-zinc-300"
+                                            >
+                                                Destino: Raiz
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    const dt = new DataTransfer();
+                                                    uploadingFiles.forEach(f => dt.items.add(f));
+                                                    handleFileUpload(dt.files, `${disk.mount}/UPLOAD CLOUD`);
+                                                    setIsSelectingDestination(false);
+                                                }}
+                                                className="py-2.5 bg-blue-600 text-white rounded-xl text-[10px] font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
+                                            >
+                                                UPLOAD CLOUD
+                                            </button>
                                         </div>
-                                    </button>
+                                    </div>
                                 ))}
                             </div>
 
