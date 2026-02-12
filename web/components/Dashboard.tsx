@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { LayoutGrid, Search, Plus, Bell, HardDrive, Clock, Star, Trash2, Zap, Settings, ChevronRight, Folder, FileText, Image as ImageIcon, Video, Music, File, MoreVertical, X, Info, LogOut, FolderPlus, Upload, Archive, Smartphone, Download, List, User, ArrowUpRight, ArrowLeft, Share2 } from "lucide-react";
+import { LayoutGrid, Search, Plus, Bell, HardDrive, Clock, Star, Trash2, Zap, Settings, ChevronRight, Folder, FileText, Image as ImageIcon, Video, Music, File, MoreVertical, X, Info, LogOut, FolderPlus, Upload, Archive, Smartphone, Download, List, User, ArrowUpRight, ArrowLeft, Share2, Loader2, CheckCircle2 } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
@@ -47,6 +47,10 @@ export default function Dashboard() {
     const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [showRightPanel, setShowRightPanel] = useState(false);
+    const [isSelectingDestination, setIsSelectingDestination] = useState(false);
+    const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [uploadSummary, setUploadSummary] = useState<string[] | null>(null);
 
     const fetchData = useCallback(async (path = "", category: string | null = null) => {
         setLoading(true);
@@ -71,27 +75,40 @@ export default function Dashboard() {
         }
     }, []);
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
+    const handleFileUpload = async (files: FileList | null, destinationPath: string) => {
         if (!files || files.length === 0) return;
 
         const formData = new FormData();
         Array.from(files).forEach(file => {
             formData.append('files', file);
         });
-        formData.append('path', currentPath);
+        formData.append('path', destinationPath);
 
         setLoading(true);
+        setUploadProgress(0);
         try {
-            await api.post('/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+            const response = await api.post('/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    setUploadProgress(percentCompleted);
+                }
             });
+            setUploadSummary(Array.from(files).map(f => f.name));
             fetchData(currentPath);
         } catch (err) {
             console.error("Upload failed", err);
         } finally {
             setLoading(false);
+            setUploadProgress(0);
             setShowNewMenu(false);
+        }
+    };
+
+    const handleFileSelectionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            setUploadingFiles(Array.from(e.target.files));
+            setIsSelectingDestination(true);
         }
     };
 
@@ -303,7 +320,7 @@ export default function Dashboard() {
                         type="file"
                         multiple
                         className="hidden"
-                        onChange={handleFileUpload}
+                        onChange={handleFileSelectionChange}
                     />
 
                     <button
@@ -590,6 +607,146 @@ export default function Dashboard() {
                         onClose={() => setPreviewFile(null)}
                         apiUrl={process.env.NEXT_PUBLIC_API_URL || "https://cadillac-editions-transaction-plymouth.trycloudflare.com/api/cloud"}
                     />
+                )}
+            </AnimatePresence>
+
+            {/* Upload Destination Modal */}
+            <AnimatePresence>
+                {isSelectingDestination && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.9, y: 20 }}
+                            className="bg-white dark:bg-[#15181C] w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 p-8"
+                        >
+                            <h3 className="text-xl font-bold mb-2">Escolha o Destino</h3>
+                            <p className="text-sm text-zinc-500 mb-6">Em qual disco ou pasta você deseja salvar ({uploadingFiles.length} arquivos)?</p>
+
+                            <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                                <button
+                                    onClick={() => {
+                                        const dt = new DataTransfer();
+                                        uploadingFiles.forEach(f => dt.items.add(f));
+                                        handleFileUpload(dt.files, currentPath);
+                                        setIsSelectingDestination(false);
+                                    }}
+                                    className="w-full flex items-center gap-4 p-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all border border-zinc-100 dark:border-zinc-800 group"
+                                >
+                                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/40 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <Folder className="w-5 h-5" />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="font-bold text-sm">Pasta Atual</p>
+                                        <p className="text-[10px] text-zinc-400 truncate max-w-[200px]">{currentPath || 'Raiz'}</p>
+                                    </div>
+                                </button>
+
+                                {stats?.allDisks.map((disk) => (
+                                    <button
+                                        key={disk.mount}
+                                        onClick={() => {
+                                            const dt = new DataTransfer();
+                                            uploadingFiles.forEach(f => dt.items.add(f));
+                                            handleFileUpload(dt.files, disk.mount);
+                                            setIsSelectingDestination(false);
+                                        }}
+                                        className="w-full flex items-center gap-4 p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-2xl transition-all border border-zinc-100 dark:border-zinc-800 group"
+                                    >
+                                        <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <HardDrive className="w-5 h-5" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-bold text-sm">{disk.name}</p>
+                                            <p className="text-[10px] text-zinc-400">{formatBytes(disk.used)} de {formatBytes(disk.size)} usados</p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="mt-8 flex gap-3">
+                                <button
+                                    onClick={() => setIsSelectingDestination(false)}
+                                    className="flex-1 py-3 text-sm font-bold text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Upload Progress Overlay */}
+            <AnimatePresence>
+                {loading && uploadProgress > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[110] bg-blue-600/90 backdrop-blur-md flex flex-col items-center justify-center text-white"
+                    >
+                        <div className="relative w-32 h-32 mb-8">
+                            <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                                className="absolute inset-0 border-4 border-white/20 border-t-white rounded-full"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center text-2xl font-black">
+                                {uploadProgress}%
+                            </div>
+                        </div>
+                        <h2 className="text-2xl font-black mb-2 animate-bounce text-center px-4">Subindo Arquivos...</h2>
+                        <p className="text-blue-100/60 text-sm font-bold tracking-widest uppercase">Aguarde a finalização</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Upload Summary Modal */}
+            <AnimatePresence>
+                {uploadSummary && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.9, y: 20 }}
+                            className="bg-white dark:bg-[#15181C] w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 p-8"
+                        >
+                            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 rounded-[24px] flex items-center justify-center mx-auto mb-6">
+                                <CheckCircle2 size={32} />
+                            </div>
+                            <h3 className="text-xl font-bold text-center mb-2">Upload concluído!</h3>
+                            <p className="text-sm text-zinc-500 text-center mb-8">{uploadSummary.length} arquivos enviados com sucesso.</p>
+
+                            <div className="space-y-2 mb-8 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
+                                {uploadSummary.map((name, i) => (
+                                    <div key={i} className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-300">
+                                        <div className="w-6 h-6 shrink-0">
+                                            {getFileIcon({ name, isDirectory: false, path: '' } as any)}
+                                        </div>
+                                        <span className="truncate">{name}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={() => setUploadSummary(null)}
+                                className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-[20px] font-black transition-all hover:scale-[1.02] active:scale-95 shadow-xl shadow-black/10"
+                            >
+                                Entendido
+                            </button>
+                        </motion.div>
+                    </motion.div>
                 )}
             </AnimatePresence>
 
