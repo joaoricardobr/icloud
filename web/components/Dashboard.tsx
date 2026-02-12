@@ -74,6 +74,8 @@ export default function Dashboard() {
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
     const [showNewMenu, setShowNewMenu] = useState(false);
     const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [showRightPanel, setShowRightPanel] = useState(false);
 
     const fetchData = useCallback(async (path = "", category: string | null = null) => {
         setLoading(true);
@@ -147,11 +149,19 @@ export default function Dashboard() {
 
     return (
         <div className="flex h-screen bg-[#FDFEFE] text-zinc-900 font-sans overflow-hidden">
-            {/* 1. Sidebar Left */}
-            <aside className="w-72 border-r border-zinc-100 flex flex-col z-20 px-6 py-8">
-                <div className="flex items-center gap-3 mb-10 pl-2">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-xl">C</div>
-                    <span className="font-bold text-xl tracking-tight text-blue-900">CloudDesk</span>
+            {/* 1. Sidebar Left - Responsive */}
+            <aside className={cn(
+                "fixed inset-y-0 left-0 w-72 bg-[#FDFEFE] border-r border-zinc-100 flex flex-col z-50 px-6 py-8 transition-transform duration-300 lg:relative lg:translate-x-0",
+                mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+            )}>
+                <div className="flex items-center justify-between mb-10 pl-2">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-xl">C</div>
+                        <span className="font-bold text-xl tracking-tight text-blue-900">CloudDesk</span>
+                    </div>
+                    <button onClick={() => setMobileMenuOpen(false)} className="lg:hidden p-2 text-zinc-400 hover:bg-zinc-100 rounded-xl">
+                        <X size={20} />
+                    </button>
                 </div>
 
                 <nav className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
@@ -202,27 +212,42 @@ export default function Dashboard() {
             {/* 2. Main Center Content */}
             <main className="flex-1 flex flex-col bg-[#FDFEFE] border-r border-zinc-100 overflow-hidden">
                 {/* Top Search Bar */}
-                <header className="h-24 flex items-center gap-6 px-10 shrink-0">
+                <header className="h-24 flex items-center gap-4 md:gap-6 px-6 md:px-10 shrink-0">
+                    <button
+                        onClick={() => setMobileMenuOpen(true)}
+                        className="lg:hidden p-3 bg-zinc-50 text-zinc-600 rounded-xl hover:bg-zinc-100 transition-all border border-zinc-100"
+                    >
+                        <LayoutGrid size={20} />
+                    </button>
+
                     <div className="flex-1 relative">
                         <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" />
                         <input
                             type="text"
-                            placeholder="Pesquise o que quiser..."
+                            placeholder="Pesquise..."
                             className="w-full bg-[#F4F7F9] border-none rounded-2xl py-3.5 pl-14 pr-6 text-sm font-medium focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-zinc-400"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
+
                     <button
                         onClick={() => setShowNewMenu(!showNewMenu)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-2xl flex items-center gap-3 transition-all font-bold text-sm shadow-lg shadow-blue-500/20 active:scale-95"
+                        className="bg-blue-600 hover:bg-blue-700 text-white p-3.5 md:px-6 md:py-3.5 rounded-2xl flex items-center gap-3 transition-all font-bold text-sm shadow-lg shadow-blue-500/20 active:scale-95"
                     >
                         <Plus size={20} />
-                        Criar Novo
+                        <span className="hidden md:inline">Criar Novo</span>
+                    </button>
+
+                    <button
+                        onClick={() => setShowRightPanel(!showRightPanel)}
+                        className="xl:hidden p-3 bg-zinc-50 text-zinc-600 rounded-xl hover:bg-zinc-100 transition-all border border-zinc-100"
+                    >
+                        <Info size={20} />
                     </button>
                 </header>
 
-                <div className="flex-1 overflow-y-auto px-10 py-6 custom-scrollbar scroll-smooth">
+                <div className="flex-1 overflow-y-auto px-6 md:px-10 py-6 custom-scrollbar scroll-smooth">
                     {/* Active Path Breadcrumbs or Title */}
                     <div className="flex items-center gap-2 mb-8">
                         <button
@@ -264,7 +289,7 @@ export default function Dashboard() {
                     {/* Dashboard Overview - Only on landing */}
                     {!currentPath && !activeCategory && activeTab === "dashboard" && (
                         <>
-                            <div className="grid grid-cols-5 gap-4 mb-10">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 mb-10">
                                 {getTypeStats.map(stat => (
                                     <div
                                         key={stat.id}
@@ -283,7 +308,7 @@ export default function Dashboard() {
 
                     {/* "My Computer" - Real Disks View */}
                     {activeTab === "computer" && stats?.allDisks && (
-                        <div className="grid grid-cols-4 gap-6 mb-12">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
                             {stats.allDisks.map(disk => (
                                 <div
                                     key={disk.mount}
@@ -317,11 +342,11 @@ export default function Dashboard() {
                     {!activeCategory && activeTab !== "computer" && (
                         <>
                             <SectionHeader title="Pastas" showViewAll />
-                            <div className="grid grid-cols-4 gap-6 mb-12">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
                                 {filteredFolders.length > 0 ? filteredFolders.map(folder => (
                                     <div
                                         key={folder.path}
-                                        onClick={() => fetchData(folder.path)}
+                                        onClick={() => { fetchData(folder.path); }}
                                         className="bg-white border border-zinc-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/5 p-6 rounded-[24px] group transition-all cursor-pointer relative"
                                     >
                                         <div className="flex justify-between items-start mb-4">
@@ -361,24 +386,24 @@ export default function Dashboard() {
                                     <div
                                         key={file.path}
                                         onClick={() => setPreviewFile(file)}
-                                        className="grid grid-cols-12 px-4 py-4 items-center hover:bg-blue-50/20 rounded-2xl transition-all group cursor-pointer"
+                                        className="grid grid-cols-6 sm:grid-cols-12 px-4 py-4 items-center hover:bg-blue-50/20 rounded-2xl transition-all group cursor-pointer"
                                     >
-                                        <div className="col-span-4 flex items-center gap-4 pr-4">
+                                        <div className="col-span-4 sm:col-span-4 flex items-center gap-4 pr-4">
                                             <div className="w-9 h-9 flex items-center justify-center text-zinc-400 group-hover:text-blue-500 bg-zinc-50 group-hover:bg-blue-50 rounded-xl p-2 shrink-0 transition-colors">
                                                 {getFileIcon(file)}
                                             </div>
                                             <span className="text-sm font-bold truncate text-zinc-700">{file.name}</span>
                                         </div>
-                                        <div className="col-span-2 text-xs font-bold text-zinc-400">{formatBytes(file.size)}</div>
-                                        <div className="col-span-3 text-xs font-semibold text-zinc-400 text-center">{new Date(file.modifiedAt).toLocaleDateString()}</div>
-                                        <div className="col-span-2 flex justify-center -space-x-2">
+                                        <div className="hidden sm:block col-span-2 text-xs font-bold text-zinc-400">{formatBytes(file.size)}</div>
+                                        <div className="hidden md:block col-span-3 text-xs font-semibold text-zinc-400 text-center">{new Date(file.modifiedAt).toLocaleDateString()}</div>
+                                        <div className="hidden lg:flex col-span-2 justify-center -space-x-2">
                                             {[1, 2, 3].map(i => (
                                                 <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-zinc-200 overflow-hidden ring-1 ring-zinc-50">
                                                     <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${file.name}${i}`} alt="Avatar" />
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="col-span-1 flex justify-end opacity-0 group-hover:opacity-100 transition-all">
+                                        <div className="col-span-2 sm:col-span-1 flex justify-end opacity-0 group-hover:opacity-100 transition-all">
                                             <MoreVertical size={16} className="text-zinc-300" />
                                         </div>
                                     </div>
@@ -389,12 +414,20 @@ export default function Dashboard() {
                 </div>
             </main>
 
-            {/* 3. Sidebar Right (Storage & Disks) */}
-            <aside className="w-80 flex flex-col px-8 py-10 z-10 shrink-0">
+            {/* 3. Sidebar Right (Storage & Disks) - Responsive */}
+            <aside className={cn(
+                "fixed inset-y-0 right-0 w-80 bg-[#FDFEFE] border-l border-zinc-100 flex flex-col z-50 px-8 py-10 transition-transform duration-300 xl:relative xl:translate-x-0",
+                showRightPanel ? "translate-x-0 overflow-y-auto" : "translate-x-full"
+            )}>
                 <div className="flex items-center justify-between mb-10">
-                    <HeaderButton icon={<Bell size={20} />} />
-                    <div className="w-10 h-10 rounded-full border-2 border-white shadow-xl shadow-zinc-200 overflow-hidden ring-4 ring-blue-50">
-                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Ricardo" alt="User" />
+                    <button onClick={() => setShowRightPanel(false)} className="xl:hidden p-2 text-zinc-400 hover:bg-zinc-100 rounded-xl">
+                        <X size={20} />
+                    </button>
+                    <div className="flex items-center gap-4 ml-auto">
+                        <HeaderButton icon={<Bell size={20} />} />
+                        <div className="w-10 h-10 rounded-full border-2 border-white shadow-xl shadow-zinc-200 overflow-hidden ring-4 ring-blue-50">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Ricardo" alt="User" />
+                        </div>
                     </div>
                 </div>
 
