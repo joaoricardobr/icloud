@@ -25,6 +25,7 @@ interface Disk {
     size: number;
     used: number;
     percent: number;
+    type?: string;
 }
 
 interface DashboardStats {
@@ -145,18 +146,48 @@ export default function Dashboard() {
         [files, searchQuery, activeTab]
     );
 
+    const EXTENSIONS_LIST = {
+        imagens: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tiff'],
+        videos: ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.flv', '.webm', '.m4v'],
+        musicas: ['.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac', '.wma'],
+        documentos: ['.pdf', '.doc', '.docx', '.txt', '.xlsx', '.pptx', '.csv', '.rtf'],
+        arquivos: ['.zip', '.rar', '.7z', '.tar', '.gz', '.apk', '.exe', '.deb', '.iso']
+    };
+
     const getTypeStats = useMemo(() => {
+        const calculateStats = (cat: keyof typeof EXTENSIONS_LIST) => {
+            const catFiles = files.filter(f => {
+                const ext = '.' + f.name.split('.').pop()?.toLowerCase();
+                return !f.isDirectory && EXTENSIONS_LIST[cat].includes(ext);
+            });
+            return {
+                count: catFiles.length,
+                size: formatBytes(catFiles.reduce((acc, f) => acc + f.size, 0))
+            };
+        };
+
+        const img = calculateStats('imagens');
+        const vid = calculateStats('videos');
+        const doc = calculateStats('documentos');
+        const mus = calculateStats('musicas');
+        const others = {
+            count: files.filter(f => !f.isDirectory).length - (img.count + vid.count + doc.count + mus.count),
+            size: formatBytes(files.filter(f => !f.isDirectory).reduce((acc, f) => acc + f.size, 0) - (files.filter(f => {
+                const ext = '.' + f.name.split('.').pop()?.toLowerCase();
+                return !f.isDirectory && [...EXTENSIONS_LIST.imagens, ...EXTENSIONS_LIST.videos, ...EXTENSIONS_LIST.documentos, ...EXTENSIONS_LIST.musicas].includes(ext);
+            }).reduce((acc, f) => acc + f.size, 0)))
+        };
+
         return [
-            { id: 'documentos', label: 'Documentos', icon: <FileText />, color: 'text-amber-500', bg: 'bg-amber-500/10', size: 'Calculando...', count: 'Docs' },
-            { id: 'imagens', label: 'Imagens', icon: <ImageIcon />, color: 'text-blue-500', bg: 'bg-blue-500/10', size: 'Calculando...', count: 'Fotos' },
-            { id: 'videos', label: 'Vídeos', icon: <Video />, color: 'text-red-500', bg: 'bg-red-500/10', size: 'Calculando...', count: 'Vídeos' },
-            { id: 'musicas', label: 'Músicas', icon: <Music />, color: 'text-purple-500', bg: 'bg-purple-500/10', size: 'Calculando...', count: 'Áudio' },
-            { id: 'others', label: 'Outros', icon: <File />, color: 'text-pink-500', bg: 'bg-pink-500/10', size: 'Calculando...', count: 'Arquivos' },
+            { id: 'documentos', label: 'Documentos', icon: <FileText className="w-5 h-5" />, color: 'text-amber-500', bg: 'bg-amber-500/10', size: doc.size, count: `${doc.count} Arquivos` },
+            { id: 'imagens', label: 'Imagens', icon: <ImageIcon className="w-5 h-5" />, color: 'text-blue-500', bg: 'bg-blue-500/10', size: img.size, count: `${img.count} Fotos` },
+            { id: 'videos', label: 'Vídeos', icon: <Video className="w-5 h-5" />, color: 'text-red-500', bg: 'bg-red-500/10', size: vid.size, count: `${vid.count} Vídeos` },
+            { id: 'musicas', label: 'Músicas', icon: <Music className="w-5 h-5" />, color: 'text-purple-500', bg: 'bg-purple-500/10', size: mus.size, count: `${mus.count} Músicas` },
+            { id: 'others', label: 'Outros', icon: <File className="w-5 h-5" />, color: 'text-pink-500', bg: 'bg-pink-500/10', size: others.size, count: `${others.count} Arquivos` },
         ];
-    }, []);
+    }, [files]);
 
     const getFileIcon = (file: FileItem) => {
-        const ext = file.name.split('.').pop()?.toLowerCase();
         const name = file.name.toLowerCase();
 
         // Standard folder mapping
@@ -182,7 +213,7 @@ export default function Dashboard() {
 
         const ext = file.name.split('.').pop()?.toLowerCase();
         switch (ext) {
-            case 'pdf':
+            case 'pdf': return <FileText className="w-full h-full text-red-500" />;
             case 'doc':
             case 'docx':
             case 'txt': return <FileText className="w-full h-full text-blue-500" />;

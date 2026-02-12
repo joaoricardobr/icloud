@@ -144,13 +144,14 @@ export const getFiles = async (req: Request, res: Response) => {
             type: d.type
         }));
 
-        // Add Home Directory as a primary 'disk' entry
+        // Add Home Directory as a primary 'disk' entry - but inherit stats from /
+        const rootDisk = relevantDisks.find(d => d.mount === '/');
         relevantDisks.unshift({
             name: 'Pasta Pessoal',
             mount: HOME_DIR,
-            used: 0, // We could calculate this but SI doesn't give it for subfolders easily
-            size: 0,
-            percent: 0,
+            used: rootDisk?.used || 0,
+            size: rootDisk?.size || 0,
+            percent: rootDisk?.percent || 0,
             type: 'home'
         });
 
@@ -209,9 +210,19 @@ export const getFiles = async (req: Request, res: Response) => {
                 return res.status(400).json({ error: 'Target is not a directory' });
             }
 
-            const items = fs.readdirSync(targetDir);
+            let items: string[] = [];
+            try {
+                items = fs.readdirSync(targetDir);
+            } catch (e) {
+                console.error(`[Readdir] Error reading ${targetDir}:`, e);
+                // Return empty if restricted
+                return res.json({ files: [], stats: { total: 0, used: 0, percent: 0, path: queryPath, allDisks: relevantDisks } });
+            }
+
             metadata = items.map(item => {
                 const itemPath = path.join(targetDir, item);
+                if (item === 'node_modules' || item === '.git' || item.startsWith('.')) return null;
+
                 try {
                     const itemStat = fs.statSync(itemPath);
                     return {
@@ -259,9 +270,11 @@ export const getFiles = async (req: Request, res: Response) => {
             }
         }
 
-        // Find current stats for the requested path
+        // Find current stats for the requested path - find the MOST SPECIFIC mount point
         const absoluteTarget = category ? STORAGE_ROOT : path.resolve(validatePath(queryPath));
-        let currentDisk = relevantDisks.find(d => absoluteTarget.startsWith(d.mount)) || relevantDisks[0];
+        let currentDisk = relevantDisks
+            .filter(d => absoluteTarget.startsWith(d.mount))
+            .sort((a, b) => b.mount.length - a.mount.length)[0] || relevantDisks[0];
 
         res.json({
             files: metadata.map(f => ({
