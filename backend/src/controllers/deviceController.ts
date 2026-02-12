@@ -76,6 +76,50 @@ const getFilesByCategory = (dir: string, category: keyof typeof EXTENSIONS, dept
         } catch (e) { continue; }
         if (results.length > 500) break;
     }
+    return results.map(item => ({ ...item, diskLabel: path.basename(dir) === 'UPLOAD CLOUD' ? 'Cloud' : (dir.startsWith(os.homedir()) ? 'Pessoal' : path.basename(dir)) }));
+};
+
+const getHybridFiles = (folderName: string, disks: any[]): any[] => {
+    let results: any[] = [];
+    const normalizedFolderName = folderName.toLowerCase();
+
+    for (const disk of disks) {
+        const potentialPaths = [
+            path.join(disk.mount, folderName),
+            path.join(disk.mount, 'UPLOAD CLOUD', folderName)
+        ];
+
+        // Handling PT-BR vs EN variations for standard folders
+        if (normalizedFolderName === 'imagens' || normalizedFolderName === 'pictures') {
+            potentialPaths.push(path.join(disk.mount, 'Pictures'), path.join(disk.mount, 'Imagens'));
+        } else if (normalizedFolderName === 'vídeos' || normalizedFolderName === 'videos') {
+            potentialPaths.push(path.join(disk.mount, 'Videos'), path.join(disk.mount, 'Vídeos'));
+        } else if (normalizedFolderName === 'documentos' || normalizedFolderName === 'documents') {
+            potentialPaths.push(path.join(disk.mount, 'Documents'), path.join(disk.mount, 'Documentos'));
+        } else if (normalizedFolderName === 'música' || normalizedFolderName === 'music') {
+            potentialPaths.push(path.join(disk.mount, 'Music'), path.join(disk.mount, 'Música'));
+        }
+
+        for (const p of potentialPaths) {
+            if (fs.existsSync(p) && fs.statSync(p).isDirectory()) {
+                const items = fs.readdirSync(p);
+                results = results.concat(items.map(item => {
+                    const itemPath = path.join(p, item);
+                    try {
+                        const itemStat = fs.statSync(itemPath);
+                        return {
+                            name: item,
+                            path: itemPath,
+                            size: itemStat.size,
+                            isDirectory: itemStat.isDirectory(),
+                            modifiedAt: itemStat.mtime,
+                            diskLabel: disk.name
+                        };
+                    } catch (e) { return null; }
+                }).filter(i => i !== null));
+            }
+        }
+    }
     return results;
 };
 
@@ -175,12 +219,22 @@ export const getFiles = async (req: Request, res: Response) => {
                         path: itemPath, // Always absolute
                         size: itemStat.size,
                         isDirectory: itemStat.isDirectory(),
-                        modifiedAt: itemStat.mtime
+                        modifiedAt: itemStat.mtime,
+                        diskLabel: currentDisk?.name || 'Sistema'
                     };
                 } catch (e) {
                     return null;
                 }
             }).filter(item => item !== null);
+
+            // HYBRID LOGIC: If opening a standard folder name, also pull from other disks
+            const standardFolders = ['Documentos', 'Vídeos', 'Imagens', 'Música', 'Downloads', 'Transferências', 'Desktop', 'Pictures', 'Videos', 'Documents', 'Music'];
+            const currentFolderName = path.basename(targetDir);
+
+            if (standardFolders.includes(currentFolderName)) {
+                const hybridResults = getHybridFiles(currentFolderName, relevantDisks.filter(d => d.mount !== currentDisk?.mount));
+                metadata = [...metadata, ...hybridResults];
+            }
 
             // If at root, also add standard home folders for quick access
             if (queryPath === '' || queryPath === '/') {

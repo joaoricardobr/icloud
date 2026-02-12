@@ -16,6 +16,7 @@ interface FileItem {
     isDirectory: boolean;
     modifiedAt: string;
     hasThumbnail?: boolean;
+    diskLabel?: string;
 }
 
 interface Disk {
@@ -160,13 +161,13 @@ export default function Dashboard() {
 
         // Standard folder mapping
         if (file.isDirectory) {
-            if (name.includes('documento')) return <FileText className="w-full h-full text-blue-500" />;
-            if (name.includes('vídeo') || name.includes('video')) return <Video className="w-full h-full text-red-500" />;
-            if (name.includes('imagem') || name.includes('picture')) return <ImageIcon className="w-full h-full text-emerald-500" />;
-            if (name.includes('música') || name.includes('music')) return <Music className="w-full h-full text-purple-500" />;
-            if (name.includes('download') || name.includes('transfer')) return <Download className="w-full h-full text-zinc-500" />;
-            if (name.includes('desktop') || name.includes('área de trabalho')) return <LayoutGrid className="w-full h-full text-blue-400" />;
-            return <Folder className="w-full h-full fill-blue-500/20 text-blue-500" />;
+            if (name.includes('documento')) return <FileText className="w-full h-full text-blue-600 drop-shadow-sm" />;
+            if (name.includes('vídeo') || name.includes('video')) return <Video className="w-full h-full text-rose-600 drop-shadow-sm" />;
+            if (name.includes('imagem') || name.includes('picture')) return <ImageIcon className="w-full h-full text-emerald-600 drop-shadow-sm" />;
+            if (name.includes('música') || name.includes('music')) return <Music className="w-full h-full text-violet-600 drop-shadow-sm" />;
+            if (name.includes('download') || name.includes('transfer')) return <Download className="w-full h-full text-amber-600 drop-shadow-sm" />;
+            if (name.includes('desktop') || name.includes('área de trabalho')) return <LayoutGrid className="w-full h-full text-sky-600 drop-shadow-sm" />;
+            return <Folder className="w-full h-full fill-blue-600/20 text-blue-600 drop-shadow-sm" />;
         }
 
         // Show thumbnail if available
@@ -472,16 +473,23 @@ export default function Dashboard() {
                                         className="bg-white border border-zinc-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/5 p-6 rounded-[24px] group transition-all cursor-pointer relative"
                                     >
                                         <div className="flex justify-between items-start mb-4">
-                                            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center p-2.5">
-                                                <Folder className="w-full h-full fill-blue-500/20 text-blue-500" />
+                                            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center p-2.5 shadow-md shadow-blue-500/10 transition-all group-hover:shadow-blue-500/20">
+                                                {getFileIcon(folder)}
                                             </div>
-                                            <button className="p-1 hover:bg-zinc-100 rounded-full transition-colors font-bold text-zinc-400">
-                                                <MoreVertical size={16} />
-                                            </button>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <button className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors font-bold text-zinc-400">
+                                                    <MoreVertical size={16} />
+                                                </button>
+                                                {folder.diskLabel && (
+                                                    <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-blue-600 text-white rounded-full tracking-tighter shadow-sm">
+                                                        {folder.diskLabel}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                         <div>
-                                            <p className="font-bold text-sm text-zinc-800 truncate mb-1">{folder.name}</p>
-                                            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Pasta</p>
+                                            <p className="font-extrabold text-sm text-zinc-900 dark:text-zinc-100 truncate mb-1">{folder.name}</p>
+                                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-black uppercase tracking-widest leading-none">{formatBytes(folder.size)}</p>
                                         </div>
                                     </div>
                                 )) : searchQuery && <p className="col-span-4 text-center text-zinc-400 py-10">Nenhuma pasta encontrada</p>}
@@ -712,9 +720,9 @@ export default function Dashboard() {
                                                         handleFileUpload(dt.files, disk.mount);
                                                         setIsSelectingDestination(false);
                                                     }}
-                                                    className="py-2.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-[10px] font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-all text-zinc-600 dark:text-zinc-300"
+                                                    className="py-3 bg-gradient-to-r from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-xl text-[10px] font-black hover:from-white hover:to-white transition-all text-zinc-800 dark:text-zinc-100 shadow-sm"
                                                 >
-                                                    Destino: Raiz
+                                                    RAIZ DO DISCO
                                                 </button>
                                                 <button
                                                     onClick={() => {
@@ -723,9 +731,9 @@ export default function Dashboard() {
                                                         handleFileUpload(dt.files, `${disk.mount}/UPLOAD CLOUD`);
                                                         setIsSelectingDestination(false);
                                                     }}
-                                                    className="py-2.5 bg-blue-600 text-white rounded-xl text-[10px] font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
+                                                    className="py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-[10px] font-black hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/20"
                                                 >
-                                                    UPLOAD CLOUD
+                                                    UPLOAD CLOUD (AUTO)
                                                 </button>
                                             </div>
                                         </div>
