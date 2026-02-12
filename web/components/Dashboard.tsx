@@ -385,6 +385,33 @@ export default function Dashboard() {
                     {/* Dashboard Overview - Only on landing */}
                     {!currentPath && !activeCategory && activeTab === "dashboard" && (
                         <>
+                            <SectionHeader title="Seus Discos" />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
+                                {stats?.allDisks.map(disk => (
+                                    <div
+                                        key={disk.mount}
+                                        onClick={() => fetchData(disk.mount)}
+                                        className="bg-white border border-zinc-100 p-6 rounded-[24px] hover:border-blue-200 hover:shadow-xl transition-all cursor-pointer group"
+                                    >
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className={cn(
+                                                "w-12 h-12 rounded-2xl flex items-center justify-center p-2.5 shadow-sm transition-transform group-hover:scale-110",
+                                                disk.type === 'home' ? "bg-emerald-50 text-emerald-500" : (disk.mount === '/' ? "bg-blue-50 text-blue-500" : "bg-zinc-50 text-zinc-500")
+                                            )}>
+                                                <HardDrive className="w-full h-full" />
+                                            </div>
+                                            <div className="text-[10px] font-black text-zinc-400">{disk.percent}%</div>
+                                        </div>
+                                        <p className="font-bold text-sm text-zinc-800 truncate mb-1">{disk.name}</p>
+                                        <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">{formatBytes(disk.used)} / {formatBytes(disk.size)}</p>
+                                        <div className="h-1.5 w-full bg-zinc-100 rounded-full mt-4 overflow-hidden">
+                                            <div className={cn("h-full", disk.mount === '/' ? "bg-blue-500" : "bg-zinc-400")} style={{ width: `${disk.percent}%` }} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <SectionHeader title="Categorias" />
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 mb-10">
                                 {getTypeStats.map(stat => (
                                     <div

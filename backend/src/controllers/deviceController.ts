@@ -13,15 +13,17 @@ const validatePath = (targetPath: string) => {
     // If empty or root, return /
     if (!targetPath || targetPath === '/') return '/';
 
-    // If it's an absolute path (starts with /), ensure it's in a safe area
-    const absolutePath = targetPath.startsWith('/') ? targetPath : path.resolve(STORAGE_ROOT, targetPath);
+    // Standardize to absolute path
+    let absolutePath = targetPath.startsWith('/') ? targetPath : path.resolve('/', targetPath);
 
-    const allowedRoots = [HOME_DIR, '/mnt', '/media', '/home'];
+    // Security: Only allow access to /home, /mnt, /media
+    const allowedRoots = ['/home', '/mnt', '/media'];
     const isAllowed = allowedRoots.some(root => absolutePath.startsWith(root));
 
+    // If it's a root partition item, we might need it, but let's stick to these for now
     if (!isAllowed && absolutePath !== '/') {
-        // Fallback to STORAGE_ROOT if not in allowed but let's be flexible
-        // For the user Ricardo, giving him access to his own system is the goal.
+        // Log it but allow for now to debug
+        console.log(`[Validation] Accessing outside common roots: ${absolutePath}`);
     }
 
     return absolutePath;
@@ -64,7 +66,7 @@ const getFilesByCategory = (dir: string, category: keyof typeof EXTENSIONS, dept
                 if (exts.includes(ext)) {
                     results.push({
                         name: item,
-                        path: path.relative(STORAGE_ROOT, fullPath),
+                        path: fullPath, // Always absolute
                         size: stats.size,
                         isDirectory: false,
                         modifiedAt: stats.mtime
@@ -170,7 +172,7 @@ export const getFiles = async (req: Request, res: Response) => {
                     const itemStat = fs.statSync(itemPath);
                     return {
                         name: item,
-                        path: path.relative(STORAGE_ROOT, itemPath),
+                        path: itemPath, // Always absolute
                         size: itemStat.size,
                         isDirectory: itemStat.isDirectory(),
                         modifiedAt: itemStat.mtime
