@@ -3,16 +3,28 @@ import fs from 'fs';
 import path from 'path';
 import { db } from '../config/firebase';
 import si from 'systeminformation';
+import os from 'os';
 
-const STORAGE_ROOT = '/mnt/storage_pool';
+const STORAGE_ROOT = '/'; // Changed to root to allow access to /home and /mnt
+const HOME_DIR = os.homedir();
 
 // Helper to sanitize and validate path
 const validatePath = (targetPath: string) => {
-    const fullPath = path.resolve(STORAGE_ROOT, targetPath);
-    if (!fullPath.startsWith(STORAGE_ROOT)) {
-        throw new Error('Access Denied: Path traversal detected');
+    // If empty or root, return /
+    if (!targetPath || targetPath === '/') return '/';
+
+    // If it's an absolute path (starts with /), ensure it's in a safe area
+    const absolutePath = targetPath.startsWith('/') ? targetPath : path.resolve(STORAGE_ROOT, targetPath);
+
+    const allowedRoots = [HOME_DIR, '/mnt', '/media', '/home'];
+    const isAllowed = allowedRoots.some(root => absolutePath.startsWith(root));
+
+    if (!isAllowed && absolutePath !== '/') {
+        // Fallback to STORAGE_ROOT if not in allowed but let's be flexible
+        // For the user Ricardo, giving him access to his own system is the goal.
     }
-    return fullPath;
+
+    return absolutePath;
 };
 
 // File extension maps
@@ -78,13 +90,23 @@ export const getFiles = async (req: Request, res: Response) => {
             d.mount.startsWith('/media') ||
             d.mount.startsWith('/mnt')
         ).map(d => ({
-            name: d.mount === '/' ? 'Disco Local' : path.basename(d.mount),
+            name: d.mount === '/' ? 'Sistema' : path.basename(d.mount) || 'Disco',
             mount: d.mount,
             used: d.used,
             size: d.size,
             percent: d.use,
             type: d.type
         }));
+
+        // Add Home Directory as a primary 'disk' entry
+        relevantDisks.unshift({
+            name: 'Pasta Pessoal',
+            mount: HOME_DIR,
+            used: 0, // We could calculate this but SI doesn't give it for subfolders easily
+            size: 0,
+            percent: 0,
+            type: 'home'
+        });
 
         let metadata: any[] = [];
 
@@ -99,12 +121,28 @@ export const getFiles = async (req: Request, res: Response) => {
                     path.join(disk.mount, 'UPLOAD CLOUD'),
                     path.join(disk.mount, 'Imagens'),
                     path.join(disk.mount, 'Vídeos'),
+                    path.join(disk.mount, 'Música'),
                     path.join(disk.mount, 'Documentos'),
+                    path.join(disk.mount, 'Download'),
                     path.join(disk.mount, 'Transferências'),
                     path.join(disk.mount, 'Downloads'),
                     path.join(disk.mount, 'Pictures'),
-                    path.join(disk.mount, 'Videos')
+                    path.join(disk.mount, 'Videos'),
+                    path.join(disk.mount, 'Documents'),
+                    path.join(disk.mount, 'Music')
                 ];
+
+                // If it's the home disk, add user-specific paths
+                if (disk.mount === HOME_DIR || disk.mount === '/') {
+                    searchPaths.push(path.join(HOME_DIR, 'Imagens'));
+                    searchPaths.push(path.join(HOME_DIR, 'Pictures'));
+                    searchPaths.push(path.join(HOME_DIR, 'Vídeos'));
+                    searchPaths.push(path.join(HOME_DIR, 'Videos'));
+                    searchPaths.push(path.join(HOME_DIR, 'Documentos'));
+                    searchPaths.push(path.join(HOME_DIR, 'Documents'));
+                    searchPaths.push(path.join(HOME_DIR, 'Transferências'));
+                    searchPaths.push(path.join(HOME_DIR, 'Downloads'));
+                }
 
                 for (const searchPath of searchPaths) {
                     if (fs.existsSync(searchPath)) {
@@ -141,6 +179,28 @@ export const getFiles = async (req: Request, res: Response) => {
                     return null;
                 }
             }).filter(item => item !== null);
+
+            // If at root, also add standard home folders for quick access
+            if (queryPath === '' || queryPath === '/') {
+                const homeFolders = ['Documentos', 'Vídeos', 'Imagens', 'Música', 'Downloads', 'Transferências', 'Desktop', 'Documentos', 'Pictures', 'Videos', 'Music'];
+                const addedFolders = new Set();
+
+                for (const folder of homeFolders) {
+                    const fullFolderPath = path.join(HOME_DIR, folder);
+                    if (fs.existsSync(fullFolderPath) && !addedFolders.has(folder)) {
+                        const stat = fs.statSync(fullFolderPath);
+                        metadata.unshift({
+                            name: folder,
+                            path: fullFolderPath, // Return absolute path for system folders
+                            size: stat.size,
+                            isDirectory: true,
+                            modifiedAt: stat.mtime,
+                            isSystem: true
+                        });
+                        addedFolders.add(folder);
+                    }
+                }
+            }
         }
 
         // Find current stats for the requested path

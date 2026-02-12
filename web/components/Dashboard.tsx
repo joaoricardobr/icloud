@@ -155,7 +155,19 @@ export default function Dashboard() {
     }, []);
 
     const getFileIcon = (file: FileItem) => {
-        if (file.isDirectory) return <Folder className="w-full h-full fill-blue-500/20 text-blue-500" />;
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        const name = file.name.toLowerCase();
+
+        // Standard folder mapping
+        if (file.isDirectory) {
+            if (name.includes('documento')) return <FileText className="w-full h-full text-blue-500" />;
+            if (name.includes('vídeo') || name.includes('video')) return <Video className="w-full h-full text-red-500" />;
+            if (name.includes('imagem') || name.includes('picture')) return <ImageIcon className="w-full h-full text-emerald-500" />;
+            if (name.includes('música') || name.includes('music')) return <Music className="w-full h-full text-purple-500" />;
+            if (name.includes('download') || name.includes('transfer')) return <Download className="w-full h-full text-zinc-500" />;
+            if (name.includes('desktop') || name.includes('área de trabalho')) return <LayoutGrid className="w-full h-full text-blue-400" />;
+            return <Folder className="w-full h-full fill-blue-500/20 text-blue-500" />;
+        }
 
         // Show thumbnail if available
         if (file.hasThumbnail) {
