@@ -436,8 +436,7 @@ export default function Dashboard() {
                                 <div
                                     key={disk.mount}
                                     onClick={() => {
-                                        const diskName = disk.mount === '/' ? "" : disk.mount.split('/').pop() || "";
-                                        fetchData(diskName);
+                                        fetchData(disk.mount);
                                         setActiveTab("dashboard");
                                     }}
                                     className="bg-white border border-zinc-100 p-6 rounded-[24px] hover:border-blue-200 hover:shadow-xl transition-all cursor-pointer group"
@@ -535,13 +534,15 @@ export default function Dashboard() {
                         </>
                     )}
                 </div>
-            </main>
+            </main >
 
             {/* 3. Sidebar Right (Storage & Disks) - Responsive */}
-            <aside className={cn(
-                "fixed inset-y-0 right-0 w-80 bg-[#FDFEFE] border-l border-zinc-100 flex flex-col z-50 px-8 py-10 transition-transform duration-300 xl:relative xl:translate-x-0",
-                showRightPanel ? "translate-x-0 overflow-y-auto" : "translate-x-full"
-            )}>
+            < aside className={
+                cn(
+                    "fixed inset-y-0 right-0 w-80 bg-[#FDFEFE] border-l border-zinc-100 flex flex-col z-50 px-8 py-10 transition-transform duration-300 xl:relative xl:translate-x-0",
+                    showRightPanel ? "translate-x-0 overflow-y-auto" : "translate-x-full"
+                )
+            } >
                 <div className="flex items-center justify-between mb-10">
                     <button onClick={() => setShowRightPanel(false)} className="xl:hidden p-2 text-zinc-400 hover:bg-zinc-100 rounded-xl">
                         <X size={20} />
@@ -557,255 +558,265 @@ export default function Dashboard() {
                 <h2 className="font-bold text-xl mb-8 text-zinc-800">Sua Nuvem</h2>
 
                 {/* Multi-Disk Storage Summary */}
-                {stats && (
-                    <div className="space-y-10 flex-1 overflow-y-auto custom-scrollbar pr-1">
-                        {/* Active Disk Arc Visual */}
-                        <div className="relative h-48 flex items-center justify-center">
-                            <svg className="w-full h-full transform -rotate-90">
-                                <circle
-                                    cx="50%" cy="50%" r="65"
-                                    className="fill-none stroke-zinc-100"
-                                    strokeWidth="12"
-                                />
-                                <circle
-                                    cx="50%" cy="50%" r="65"
-                                    className="fill-none stroke-blue-600"
-                                    strokeWidth="12"
-                                    strokeDasharray={`${(stats.percent / 100) * 408} 408`}
-                                    strokeLinecap="round"
-                                />
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <p className="text-2xl font-black text-blue-900 leading-tight">{formatBytes(stats.used)}</p>
-                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Usados de {formatBytes(stats.total)}</p>
+                {
+                    stats && (
+                        <div className="space-y-10 flex-1 overflow-y-auto custom-scrollbar pr-1">
+                            {/* Active Disk Arc Visual */}
+                            <div className="relative h-48 flex items-center justify-center">
+                                <svg className="w-full h-full transform -rotate-90">
+                                    <circle
+                                        cx="50%" cy="50%" r="65"
+                                        className="fill-none stroke-zinc-100"
+                                        strokeWidth="12"
+                                    />
+                                    <circle
+                                        cx="50%" cy="50%" r="65"
+                                        className="fill-none stroke-blue-600"
+                                        strokeWidth="12"
+                                        strokeDasharray={`${(stats.percent / 100) * 408} 408`}
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                    <p className="text-2xl font-black text-blue-900 leading-tight">{formatBytes(stats.used)}</p>
+                                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Usados de {formatBytes(stats.total)}</p>
+                                </div>
+                            </div>
+
+                            {/* Categories List (Matching Reference Image) */}
+                            <div className="space-y-5">
+                                {getTypeStats.map(stat => (
+                                    <div key={stat.id} className="flex items-center justify-between group cursor-pointer hover:bg-zinc-50 p-2 rounded-2xl transition-all -mx-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shadow-sm", stat.bg, stat.color)}>
+                                                {stat.icon}
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] font-bold text-zinc-800">{stat.label}</p>
+                                                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-tighter">{stat.count}</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-[11px] font-black text-zinc-800">{stat.size}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* All Disks Recognition List */}
+                            <div className="space-y-6">
+                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">Discos Conectados</p>
+                                {stats.allDisks.map(disk => (
+                                    <div key={disk.mount} className="flex items-center gap-4 group cursor-pointer">
+                                        <div className={cn(
+                                            "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all group-hover:scale-110",
+                                            disk.mount === '/' ? "bg-blue-50 text-blue-500 shadow-blue-100 ring-2 ring-blue-100" : "bg-zinc-50 text-zinc-500"
+                                        )}>
+                                            <HardDrive size={18} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <p className="text-[11px] font-bold truncate">{disk.mount === '/' ? 'Disco Principal' : disk.name}</p>
+                                                <p className="text-[11px] font-black text-zinc-800">{disk.percent}%</p>
+                                            </div>
+                                            <div className="h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden">
+                                                <motion.div
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${disk.percent}%` }}
+                                                    className={cn("h-full", disk.mount === '/' ? "bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.3)]" : "bg-zinc-400")}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Import/Upload Area in Right Sidebar */}
+                            <div className="bg-white border-2 border-dashed border-zinc-100 rounded-[32px] p-6 text-center hover:border-blue-200 hover:bg-blue-50/10 transition-all cursor-pointer group mt-auto">
+                                <div className="w-10 h-10 bg-zinc-50 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                                    <Upload size={18} className="text-zinc-400 group-hover:text-blue-600" />
+                                </div>
+                                <p className="text-[11px] font-bold text-zinc-700">Importar Arquivos</p>
                             </div>
                         </div>
-
-                        {/* Categories List (Matching Reference Image) */}
-                        <div className="space-y-5">
-                            {getTypeStats.map(stat => (
-                                <div key={stat.id} className="flex items-center justify-between group cursor-pointer hover:bg-zinc-50 p-2 rounded-2xl transition-all -mx-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shadow-sm", stat.bg, stat.color)}>
-                                            {stat.icon}
-                                        </div>
-                                        <div>
-                                            <p className="text-[11px] font-bold text-zinc-800">{stat.label}</p>
-                                            <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-tighter">{stat.count}</p>
-                                        </div>
-                                    </div>
-                                    <p className="text-[11px] font-black text-zinc-800">{stat.size}</p>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* All Disks Recognition List */}
-                        <div className="space-y-6">
-                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">Discos Conectados</p>
-                            {stats.allDisks.map(disk => (
-                                <div key={disk.mount} className="flex items-center gap-4 group cursor-pointer">
-                                    <div className={cn(
-                                        "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all group-hover:scale-110",
-                                        disk.mount === '/' ? "bg-blue-50 text-blue-500 shadow-blue-100 ring-2 ring-blue-100" : "bg-zinc-50 text-zinc-500"
-                                    )}>
-                                        <HardDrive size={18} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <p className="text-[11px] font-bold truncate">{disk.mount === '/' ? 'Disco Principal' : disk.name}</p>
-                                            <p className="text-[11px] font-black text-zinc-800">{disk.percent}%</p>
-                                        </div>
-                                        <div className="h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden">
-                                            <motion.div
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${disk.percent}%` }}
-                                                className={cn("h-full", disk.mount === '/' ? "bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.3)]" : "bg-zinc-400")}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Import/Upload Area in Right Sidebar */}
-                        <div className="bg-white border-2 border-dashed border-zinc-100 rounded-[32px] p-6 text-center hover:border-blue-200 hover:bg-blue-50/10 transition-all cursor-pointer group mt-auto">
-                            <div className="w-10 h-10 bg-zinc-50 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                                <Upload size={18} className="text-zinc-400 group-hover:text-blue-600" />
-                            </div>
-                            <p className="text-[11px] font-bold text-zinc-700">Importar Arquivos</p>
-                        </div>
-                    </div>
-                )}
-            </aside>
+                    )
+                }
+            </aside >
 
             {/* Media Player Modal */}
             <AnimatePresence>
-                {previewFile && (
-                    <MediaPlayer
-                        file={previewFile}
-                        onClose={() => setPreviewFile(null)}
-                        apiUrl={process.env.NEXT_PUBLIC_API_URL || "https://cadillac-editions-transaction-plymouth.trycloudflare.com/api/cloud"}
-                    />
-                )}
-            </AnimatePresence>
+                {
+                    previewFile && (
+                        <MediaPlayer
+                            file={previewFile}
+                            onClose={() => setPreviewFile(null)}
+                            apiUrl={process.env.NEXT_PUBLIC_API_URL || "https://cadillac-editions-transaction-plymouth.trycloudflare.com/api/cloud"}
+                        />
+                    )
+                }
+            </AnimatePresence >
 
             {/* Upload Destination Modal */}
             <AnimatePresence>
-                {isSelectingDestination && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-                    >
+                {
+                    isSelectingDestination && (
                         <motion.div
-                            initial={{ scale: 0.9, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.9, y: 20 }}
-                            className="bg-white dark:bg-[#15181C] w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 p-8"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
                         >
-                            <h3 className="text-xl font-bold mb-2">Escolha o Destino</h3>
-                            <p className="text-sm text-zinc-500 mb-6">Em qual disco ou pasta você deseja salvar ({uploadingFiles.length} arquivos)?</p>
+                            <motion.div
+                                initial={{ scale: 0.9, y: 20 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0.9, y: 20 }}
+                                className="bg-white dark:bg-[#15181C] w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 p-8"
+                            >
+                                <h3 className="text-xl font-bold mb-2">Escolha o Destino</h3>
+                                <p className="text-sm text-zinc-500 mb-6">Em qual disco ou pasta você deseja salvar ({uploadingFiles.length} arquivos)?</p>
 
-                            <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-                                <button
-                                    onClick={() => {
-                                        const dt = new DataTransfer();
-                                        uploadingFiles.forEach(f => dt.items.add(f));
-                                        handleFileUpload(dt.files, currentPath);
-                                        setIsSelectingDestination(false);
-                                    }}
-                                    className="w-full flex items-center gap-4 p-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all border border-zinc-100 dark:border-zinc-800 group"
-                                >
-                                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/40 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                                        <Folder className="w-5 h-5" />
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="font-bold text-sm">Pasta Atual</p>
-                                        <p className="text-[10px] text-zinc-400 truncate max-w-[200px]">{currentPath || 'Raiz'}</p>
-                                    </div>
-                                </button>
+                                <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                                    <button
+                                        onClick={() => {
+                                            const dt = new DataTransfer();
+                                            uploadingFiles.forEach(f => dt.items.add(f));
+                                            handleFileUpload(dt.files, currentPath);
+                                            setIsSelectingDestination(false);
+                                        }}
+                                        className="w-full flex items-center gap-4 p-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all border border-zinc-100 dark:border-zinc-800 group"
+                                    >
+                                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/40 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <Folder className="w-5 h-5" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-bold text-sm">Pasta Atual</p>
+                                            <p className="text-[10px] text-zinc-400 truncate max-w-[200px]">{currentPath || 'Raiz'}</p>
+                                        </div>
+                                    </button>
 
-                                {stats?.allDisks.map((disk) => (
-                                    <div key={disk.mount} className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-800 text-zinc-500 rounded-lg flex items-center justify-center">
-                                                <HardDrive size={16} />
+                                    {stats?.allDisks.map((disk) => (
+                                        <div key={disk.mount} className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-800 text-zinc-500 rounded-lg flex items-center justify-center">
+                                                    <HardDrive size={16} />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-xs">{disk.name}</p>
+                                                    <p className="text-[10px] text-zinc-400">{formatBytes(disk.used)} de {formatBytes(disk.size)}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-bold text-xs">{disk.name}</p>
-                                                <p className="text-[10px] text-zinc-400">{formatBytes(disk.used)} de {formatBytes(disk.size)}</p>
+
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        const dt = new DataTransfer();
+                                                        uploadingFiles.forEach(f => dt.items.add(f));
+                                                        handleFileUpload(dt.files, disk.mount);
+                                                        setIsSelectingDestination(false);
+                                                    }}
+                                                    className="py-2.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-[10px] font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-all text-zinc-600 dark:text-zinc-300"
+                                                >
+                                                    Destino: Raiz
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const dt = new DataTransfer();
+                                                        uploadingFiles.forEach(f => dt.items.add(f));
+                                                        handleFileUpload(dt.files, `${disk.mount}/UPLOAD CLOUD`);
+                                                        setIsSelectingDestination(false);
+                                                    }}
+                                                    className="py-2.5 bg-blue-600 text-white rounded-xl text-[10px] font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
+                                                >
+                                                    UPLOAD CLOUD
+                                                </button>
                                             </div>
                                         </div>
+                                    ))}
+                                </div>
 
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    const dt = new DataTransfer();
-                                                    uploadingFiles.forEach(f => dt.items.add(f));
-                                                    handleFileUpload(dt.files, disk.mount);
-                                                    setIsSelectingDestination(false);
-                                                }}
-                                                className="py-2.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-[10px] font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-all text-zinc-600 dark:text-zinc-300"
-                                            >
-                                                Destino: Raiz
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    const dt = new DataTransfer();
-                                                    uploadingFiles.forEach(f => dt.items.add(f));
-                                                    handleFileUpload(dt.files, `${disk.mount}/UPLOAD CLOUD`);
-                                                    setIsSelectingDestination(false);
-                                                }}
-                                                className="py-2.5 bg-blue-600 text-white rounded-xl text-[10px] font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
-                                            >
-                                                UPLOAD CLOUD
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="mt-8 flex gap-3">
-                                <button
-                                    onClick={() => setIsSelectingDestination(false)}
-                                    className="flex-1 py-3 text-sm font-bold text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all"
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
+                                <div className="mt-8 flex gap-3">
+                                    <button
+                                        onClick={() => setIsSelectingDestination(false)}
+                                        className="flex-1 py-3 text-sm font-bold text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </motion.div>
                         </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    )
+                }
+            </AnimatePresence >
 
             {/* Upload Progress Overlay */}
             <AnimatePresence>
-                {loading && uploadProgress > 0 && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[110] bg-blue-600/90 backdrop-blur-md flex flex-col items-center justify-center text-white"
-                    >
-                        <div className="relative w-32 h-32 mb-8">
-                            <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                                className="absolute inset-0 border-4 border-white/20 border-t-white rounded-full"
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center text-2xl font-black">
-                                {uploadProgress}%
+                {
+                    loading && uploadProgress > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[110] bg-blue-600/90 backdrop-blur-md flex flex-col items-center justify-center text-white"
+                        >
+                            <div className="relative w-32 h-32 mb-8">
+                                <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                                    className="absolute inset-0 border-4 border-white/20 border-t-white rounded-full"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center text-2xl font-black">
+                                    {uploadProgress}%
+                                </div>
                             </div>
-                        </div>
-                        <h2 className="text-2xl font-black mb-2 animate-bounce text-center px-4">Subindo Arquivos...</h2>
-                        <p className="text-blue-100/60 text-sm font-bold tracking-widest uppercase">Aguarde a finalização</p>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                            <h2 className="text-2xl font-black mb-2 animate-bounce text-center px-4">Subindo Arquivos...</h2>
+                            <p className="text-blue-100/60 text-sm font-bold tracking-widest uppercase">Aguarde a finalização</p>
+                        </motion.div>
+                    )
+                }
+            </AnimatePresence >
 
             {/* Upload Summary Modal */}
             <AnimatePresence>
-                {uploadSummary && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-                    >
+                {
+                    uploadSummary && (
                         <motion.div
-                            initial={{ scale: 0.9, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.9, y: 20 }}
-                            className="bg-white dark:bg-[#15181C] w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 p-8"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
                         >
-                            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 rounded-[24px] flex items-center justify-center mx-auto mb-6">
-                                <CheckCircle2 size={32} />
-                            </div>
-                            <h3 className="text-xl font-bold text-center mb-2">Upload concluído!</h3>
-                            <p className="text-sm text-zinc-500 text-center mb-8">{uploadSummary.length} arquivos enviados com sucesso.</p>
-
-                            <div className="space-y-2 mb-8 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
-                                {uploadSummary.map((name, i) => (
-                                    <div key={i} className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-300">
-                                        <div className="w-6 h-6 shrink-0">
-                                            {getFileIcon({ name, isDirectory: false, path: '' } as any)}
-                                        </div>
-                                        <span className="truncate">{name}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <button
-                                onClick={() => setUploadSummary(null)}
-                                className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-[20px] font-black transition-all hover:scale-[1.02] active:scale-95 shadow-xl shadow-black/10"
+                            <motion.div
+                                initial={{ scale: 0.9, y: 20 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0.9, y: 20 }}
+                                className="bg-white dark:bg-[#15181C] w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 p-8"
                             >
-                                Entendido
-                            </button>
+                                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 rounded-[24px] flex items-center justify-center mx-auto mb-6">
+                                    <CheckCircle2 size={32} />
+                                </div>
+                                <h3 className="text-xl font-bold text-center mb-2">Upload concluído!</h3>
+                                <p className="text-sm text-zinc-500 text-center mb-8">{uploadSummary.length} arquivos enviados com sucesso.</p>
+
+                                <div className="space-y-2 mb-8 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
+                                    {uploadSummary.map((name, i) => (
+                                        <div key={i} className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-300">
+                                            <div className="w-6 h-6 shrink-0">
+                                                {getFileIcon({ name, isDirectory: false, path: '' } as any)}
+                                            </div>
+                                            <span className="truncate">{name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <button
+                                    onClick={() => setUploadSummary(null)}
+                                    className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-[20px] font-black transition-all hover:scale-[1.02] active:scale-95 shadow-xl shadow-black/10"
+                                >
+                                    Entendido
+                                </button>
+                            </motion.div>
                         </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    )
+                }
+            </AnimatePresence >
 
             <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&display=swap');
@@ -814,7 +825,7 @@ export default function Dashboard() {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #E4E4E7; border-radius: 10px; }
       `}</style>
-        </div>
+        </div >
     );
 }
 
