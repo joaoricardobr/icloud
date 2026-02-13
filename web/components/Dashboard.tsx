@@ -478,5 +478,23 @@ function LoadingSkeleton() {
                 ))}
             </div>
         </div>
-    );
+            </div>
+        </div>
+
+        {/* File Preview Modal */}
+        {previewFile && (
+            <FilePreview
+                file={previewFile}
+                onClose={() => {
+                    setPreviewFile(null);
+                    setPreviewIndex(-1);
+                }}
+                onNext={hasNextFile() ? handleNextFile : undefined}
+                onPrevious={hasPreviousFile() ? handlePreviousFile : undefined}
+                hasNext={hasNextFile()}
+                hasPrevious={hasPreviousFile()}
+            />
+        )}
+    </div>
+);
 }
