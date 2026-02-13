@@ -60,7 +60,7 @@ export default function Login() {
         setError("");
         try {
             await signInWithEmailAndPassword(auth, email, password);
-            window.location.href = "/";
+            window.location.href = "/dashboard";
         } catch (err: any) {
             setError("E-mail ou senha incorretos.");
             setLoading(false);
@@ -71,7 +71,7 @@ export default function Login() {
         const provider = new GoogleAuthProvider();
         try {
             await signInWithPopup(auth, provider);
-            window.location.href = "/";
+            window.location.href = "/dashboard";
         } catch (err: any) {
             setError("Erro ao autenticar com o Google.");
         }
@@ -298,7 +298,7 @@ export default function Login() {
                     >
                         <div className="flex items-center gap-6">
                             <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-blue-500/50">
-                                <Lock Keyhole size={12} />
+                                <LockKeyhole size={12} />
                                 AES-256 Encrypted
                             </span>
                             <div className="w-1.5 h-1.5 bg-white/10 rounded-full" />
