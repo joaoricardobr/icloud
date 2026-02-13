@@ -39,6 +39,9 @@ const updateBaseURL = async (retryCount = 0) => {
     console.warn("⚠️ Usando URL padrão:", api.defaults.baseURL);
 };
 
+// Export discovery for external triggering
+export const refreshApiConfig = () => updateBaseURL();
+
 // Start discovery immediately
 if (typeof window !== "undefined") {
     updateBaseURL();

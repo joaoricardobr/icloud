@@ -6,6 +6,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import Login from "@/components/Login";
 import Dashboard from "@/components/Dashboard";
 import { RefreshCw } from "lucide-react";
+import { refreshApiConfig } from "@/lib/api";
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -16,6 +17,7 @@ export default function Home() {
       setUser(currentUser);
       setLoading(false);
       if (currentUser) {
+        refreshApiConfig();
         window.location.href = "/dashboard";
       }
     });

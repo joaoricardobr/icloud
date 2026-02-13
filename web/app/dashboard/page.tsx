@@ -6,6 +6,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
+import { refreshApiConfig } from "@/lib/api";
 
 export default function DashboardPage() {
     const [user, setUser] = useState<User | null>(null);
@@ -14,6 +15,9 @@ export default function DashboardPage() {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            if (currentUser) {
+                refreshApiConfig();
+            }
             if (!currentUser && !loading) {
                 router.push("/");
             }

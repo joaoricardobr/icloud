@@ -42,7 +42,12 @@ async function updateApiUrl() {
         console.log('✅ URL do Firestore atualizada com sucesso!');
         process.exit(0);
     } catch (error) {
-        console.error('❌ Erro ao atualizar Firestore:', error);
+        console.error('❌ Erro ao atualizar Firestore:', error.message || error);
+        if (error.message && error.message.includes('Could not load the default credentials')) {
+            console.log('\n💡 DICA: O script não conseguiu se autenticar com o Firebase.');
+            console.log('Por favor, coloque o arquivo "service-account.json" na pasta "backend/"');
+            console.log('ou rode "gcloud auth application-default login" no terminal.\n');
+        }
         process.exit(1);
     }
 }
