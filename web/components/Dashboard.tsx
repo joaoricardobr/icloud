@@ -11,14 +11,18 @@ import DiskCard from "./DiskCard";
 import CategoryCard from "./CategoryCard";
 import FileGrid from "./FileGrid";
 import FilePreview from "./FilePreview";
+import CreateFolderModal from "./modals/CreateFolderModal";
+import UploadModal from "./modals/UploadModal";
 import { pageTransition, staggerContainer } from "@/lib/animations";
+import { cn } from "@/lib/utils";
 
 interface FileItem {
     name: string;
     path: string;
     size: number;
     isDirectory: boolean;
-    modifiedAt: string;
+    mtime: string;
+    isFavorite?: boolean;
     diskLabel?: string;
     category?: string;
 }
@@ -51,6 +55,15 @@ export default function Dashboard() {
     const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
     const [previewIndex, setPreviewIndex] = useState<number>(-1);
 
+    // New states for features
+    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [filterType, setFilterType] = useState<string>("all");
+    const [sortBy, setSortBy] = useState<string>("name");
+    const [isUploading, setIsUploading] = useState(false);
+    const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+    const [showUploadModal, setShowUploadModal] = useState(false);
+
     // Fetch data from backend
     const fetchData = async (path: string = "", mode?: string, category?: string) => {
         setLoading(true);
@@ -61,19 +74,11 @@ export default function Dashboard() {
             if (path) params.append('path', path);
             if (category) params.append('category', category);
 
-            console.log('[Dashboard] Fetching:', `/files?${params.toString()}`);
-            console.log('[Dashboard] API Base URL:', api.defaults.baseURL);
-
             const response = await api.get(`/files?${params.toString()}`);
-            console.log('[Dashboard] Response status:', response.status);
-            console.log('[Dashboard] Response data:', response.data);
 
             const filesData = response.data.files || [];
             const disksData = response.data.stats?.allDisks || [];
             const categoriesData = response.data.stats?.categories || null;
-
-            console.log('[Dashboard] Parsed - Files:', filesData.length, 'Disks:', disksData.length);
-            console.log('[Dashboard] Category stats:', categoriesData);
 
             setFiles(filesData);
             setDisks(disksData);
@@ -84,16 +89,8 @@ export default function Dashboard() {
             }
         } catch (err: any) {
             console.error("[Dashboard] Error fetching files:", err);
-            console.error("[Dashboard] Error details:", {
-                message: err.message,
-                response: err.response?.data,
-                status: err.response?.status
-            });
-
             const errorMsg = err.response?.data?.error || err.message || "Erro ao carregar dados";
             setError(errorMsg);
-
-            // Set empty data on error
             setFiles([]);
             setDisks([]);
             setCategoryStats(null);
@@ -113,6 +110,8 @@ export default function Dashboard() {
     const handleViewChange = (view: "home" | "recent" | "favorites" | "trash") => {
         setActiveView(view);
         setActiveCategory("");
+        setSearchQuery("");
+        setFilterType("all");
         if (view === "home") {
             fetchData("");
         } else {
@@ -124,6 +123,8 @@ export default function Dashboard() {
     const handleCategoryChange = (category: string) => {
         setActiveView("category");
         setActiveCategory(category);
+        setSearchQuery("");
+        setFilterType("all");
         fetchData("", undefined, category);
     };
 
@@ -132,64 +133,154 @@ export default function Dashboard() {
         if (file.isDirectory) {
             navigateTo(file.path);
         } else {
-            // Open file preview
-            const fileIndex = files.findIndex(f => f.path === file.path);
+            const fileIndex = filteredFiles.findIndex(f => f.path === file.path);
             setPreviewFile(file);
             setPreviewIndex(fileIndex);
         }
     };
 
+    // File Operations
+    const handleUpload = async (filesToUpload: FileList | null, destinationOverride?: string) => {
+        if (!filesToUpload || filesToUpload.length === 0) return;
+
+        setIsUploading(true);
+        const targetPath = destinationOverride !== undefined ? destinationOverride : currentPath;
+        const formData = new FormData();
+        formData.append("path", targetPath);
+        for (let i = 0; i < filesToUpload.length; i++) {
+            formData.append("files", filesToUpload[i]);
+        }
+
+        try {
+            await api.post("/upload", formData, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
+            fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
+        } catch (err: any) {
+            alert("Erro ao enviar arquivos: " + (err.response?.data?.error || err.message));
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleNewFolder = async (nameOverride?: string, pathOverride?: string) => {
+        let name = nameOverride;
+        let path = pathOverride !== undefined ? pathOverride : currentPath;
+
+        if (!name) {
+            name = prompt("Nome da nova pasta:") || undefined;
+        }
+
+        if (!name) return;
+
+        try {
+            await api.post("/create-folder", { path, name });
+            fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
+        } catch (err: any) {
+            alert("Erro ao criar pasta: " + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleToggleFavorite = async (file: FileItem) => {
+        try {
+            await api.post("/favorite", { path: file.path });
+            // Refresh current view
+            fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
+        } catch (err: any) {
+            console.error("Error toggling favorite:", err);
+        }
+    };
+
+    const handleDelete = async (file: FileItem) => {
+        if (!confirm(`Tem certeza que deseja mover "${file.name}" para a lixeira?`)) return;
+
+        try {
+            await api.delete("/delete", { data: { path: file.path } });
+            fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
+        } catch (err: any) {
+            alert("Erro ao excluir: " + (err.response?.data?.error || err.message));
+        }
+    };
+
+    // Filtered and Sorted files
+    const filteredFiles = files
+        .filter(file => {
+            const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+            let matchesFilter = true;
+            if (filterType === "folders") matchesFilter = file.isDirectory;
+            else if (filterType === "files") matchesFilter = !file.isDirectory;
+            else if (filterType === "favorite") matchesFilter = !!file.isFavorite;
+            else if (filterType !== "all") {
+                // Category-based filtering (image, video, audio, document)
+                const ext = file.name.split('.').pop()?.toLowerCase() || '';
+                const images = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+                const videos = ['mp4', 'mkv', 'mov', 'avi', 'webm'];
+                const audios = ['mp3', 'wav', 'flac', 'm4a', 'ogg'];
+                const docs = ['pdf', 'doc', 'docx', 'txt', 'xlsx', 'pptx'];
+
+                if (filterType === "image") matchesFilter = images.includes(ext);
+                else if (filterType === "video") matchesFilter = videos.includes(ext);
+                else if (filterType === "audio") matchesFilter = audios.includes(ext);
+                else if (filterType === "document") matchesFilter = docs.includes(ext);
+            }
+
+            return matchesSearch && matchesFilter;
+        })
+        .sort((a, b) => {
+            if (sortBy === "name") return a.name.localeCompare(b.name);
+            if (sortBy === "size") return b.size - a.size;
+            if (sortBy === "date") return new Date(b.mtime).getTime() - new Date(a.mtime).getTime();
+            return 0;
+        });
+
     // Navigate to next file in preview
     const handleNextFile = () => {
         const nextIndex = previewIndex + 1;
-        if (nextIndex < files.length) {
-            const nextFile = files[nextIndex];
+        if (nextIndex < filteredFiles.length) {
+            const nextFile = filteredFiles[nextIndex];
             if (!nextFile.isDirectory) {
                 setPreviewFile(nextFile);
                 setPreviewIndex(nextIndex);
             } else {
-                // Skip directories
                 let i = nextIndex + 1;
-                while (i < files.length && files[i].isDirectory) i++;
-                if (i < files.length) {
-                    setPreviewFile(files[i]);
+                while (i < filteredFiles.length && filteredFiles[i].isDirectory) i++;
+                if (i < filteredFiles.length) {
+                    setPreviewFile(filteredFiles[i]);
                     setPreviewIndex(i);
                 }
             }
         }
     };
 
-    // Navigate to previous file in preview
     const handlePreviousFile = () => {
         const prevIndex = previewIndex - 1;
         if (prevIndex >= 0) {
-            const prevFile = files[prevIndex];
+            const prevFile = filteredFiles[prevIndex];
             if (!prevFile.isDirectory) {
                 setPreviewFile(prevFile);
                 setPreviewIndex(prevIndex);
             } else {
-                // Skip directories
                 let i = prevIndex - 1;
-                while (i >= 0 && files[i].isDirectory) i--;
+                while (i >= 0 && filteredFiles[i].isDirectory) i--;
                 if (i >= 0) {
-                    setPreviewFile(files[i]);
+                    setPreviewFile(filteredFiles[i]);
                     setPreviewIndex(i);
                 }
             }
         }
     };
 
-    // Check if there are next/previous files
     const hasNextFile = () => {
-        for (let i = previewIndex + 1; i < files.length; i++) {
-            if (!files[i].isDirectory) return true;
+        for (let i = previewIndex + 1; i < filteredFiles.length; i++) {
+            if (!filteredFiles[i].isDirectory) return true;
         }
         return false;
     };
 
     const hasPreviousFile = () => {
         for (let i = previewIndex - 1; i >= 0; i--) {
-            if (!files[i].isDirectory) return true;
+            if (!filteredFiles[i].isDirectory) return true;
         }
         return false;
     };
@@ -203,6 +294,18 @@ export default function Dashboard() {
             ];
         }
 
+        if (activeView !== "home") {
+            const views: Record<string, string> = {
+                recent: "Recentes",
+                favorites: "Favoritos",
+                trash: "Lixeira"
+            };
+            return [
+                { name: "Início", path: "" },
+                { name: views[activeView] || activeView, path: "" }
+            ];
+        }
+
         if (!currentPath) return [{ name: "Início", path: "" }];
 
         const parts = currentPath.split('/').filter(Boolean);
@@ -210,8 +313,11 @@ export default function Dashboard() {
 
         let accumulatedPath = "";
         parts.forEach(part => {
-            accumulatedPath += `/${part}`;
-            breadcrumbs.push({ name: part, path: accumulatedPath });
+            // Check if it's a Linux absolute path or relative home
+            accumulatedPath += accumulatedPath.endsWith('/') ? part : (accumulatedPath ? '/' : '') + part;
+            // Ensure first part is treated as path if it starts with /
+            const fullPath = currentPath.startsWith('/') && !accumulatedPath.startsWith('/') ? '/' + accumulatedPath : accumulatedPath;
+            breadcrumbs.push({ name: part, path: fullPath });
         });
 
         return breadcrumbs;
@@ -228,6 +334,7 @@ export default function Dashboard() {
     };
 
     const handleLogout = async () => {
+        await api.post("/logout").catch(() => { }); // Optional
         await signOut(auth);
         window.location.href = "/";
     };
@@ -238,7 +345,7 @@ export default function Dashboard() {
     }, []);
 
     return (
-        <div className="flex h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50">
+        <div className="flex h-screen bg-slate-50 overflow-hidden">
             {/* Sidebar */}
             <Sidebar
                 activeView={activeView}
@@ -249,62 +356,111 @@ export default function Dashboard() {
             />
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col overflow-hidden">
+            <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
                 {/* TopBar */}
                 <TopBar
                     breadcrumbs={getBreadcrumbs()}
                     onNavigate={navigateTo}
-                    onUpload={() => console.log("Upload")}
-                    onNewFolder={() => console.log("New Folder")}
-                    onSearch={(query) => console.log("Search:", query)}
+                    onUpload={handleUpload}
+                    onUploadClick={() => setShowUploadModal(true)}
+                    onNewFolderClick={() => setShowCreateFolderModal(true)}
+                    onSearch={setSearchQuery}
+                    onFilterChange={setFilterType}
+                    onSortChange={setSortBy}
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                    currentFilter={filterType}
+                    currentSort={sortBy}
                 />
 
                 {/* Content Area */}
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
                     {/* Error Message */}
                     {error && (
-                        <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-                            <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <div>
-                                <h3 className="font-semibold text-red-900">Erro ao carregar dados</h3>
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mb-8 bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-4 shadow-sm"
+                        >
+                            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-red-900">Erro na Operação</h3>
                                 <p className="text-sm text-red-700 mt-1">{error}</p>
+                            </div>
+                            <button
+                                onClick={() => fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined)}
+                                className="px-4 py-2 bg-white border border-red-200 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                                Tentar novamente
+                            </button>
+                        </motion.div>
+                    )}
+
+                    {/* Filters Bar (Internal) */}
+                    {activeView !== "home" || currentPath ? (
+                        <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
+                            <h2 className="text-2xl font-black text-slate-800">
+                                {activeView === "home" ? (currentPath ? "Arquivos" : "Painel") :
+                                    activeView === "category" ? getCategoryDisplayName(activeCategory) :
+                                        getBreadcrumbs().slice(-1)[0].name}
+                            </h2>
+
+                            <div className="flex items-center gap-2 bg-white p-1 rounded-2xl shadow-sm border border-slate-100">
                                 <button
-                                    onClick={() => fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined)}
-                                    className="mt-2 text-sm font-medium text-red-600 hover:text-red-700 underline"
+                                    onClick={() => setFilterType("all")}
+                                    className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "all" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
                                 >
-                                    Tentar novamente
+                                    Todos
+                                </button>
+                                <button
+                                    onClick={() => setFilterType("folders")}
+                                    className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "folders" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
+                                >
+                                    Pastas
+                                </button>
+                                <button
+                                    onClick={() => setFilterType("files")}
+                                    className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "files" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
+                                >
+                                    Arquivos
                                 </button>
                             </div>
                         </div>
-                    )}
+                    ) : null}
 
                     <AnimatePresence mode="wait">
                         {loading ? (
                             <LoadingSkeleton key="loading" />
                         ) : (
                             <motion.div
-                                key={activeView + activeCategory + currentPath}
+                                key={activeView + activeCategory + currentPath + searchQuery + filterType}
                                 variants={pageTransition}
                                 initial="hidden"
                                 animate="visible"
                                 exit="exit"
+                                className="pb-12"
                             >
                                 {/* HOME VIEW - Show Categories + Disks */}
                                 {activeView === "home" && !currentPath && (
-                                    <div className="space-y-8">
+                                    <div className="space-y-12">
                                         {/* Category Cards */}
                                         {categoryStats && (
                                             <section>
-                                                <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                                                    Meus Arquivos
-                                                </h2>
+                                                <div className="flex items-center justify-between mb-8">
+                                                    <div>
+                                                        <h2 className="text-3xl font-black text-slate-900">Meu Armazenamento</h2>
+                                                        <p className="text-slate-500">Acesse seus arquivos por categoria</p>
+                                                    </div>
+                                                </div>
                                                 <motion.div
                                                     variants={staggerContainer}
                                                     initial="hidden"
                                                     animate="visible"
-                                                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                                                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
                                                 >
                                                     <CategoryCard
                                                         category="imagens"
@@ -337,14 +493,15 @@ export default function Dashboard() {
                                         {/* Disk Cards */}
                                         {disks.length > 0 && (
                                             <section>
-                                                <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                                                    Meus Discos
-                                                </h2>
+                                                <div className="mb-8">
+                                                    <h2 className="text-3xl font-black text-slate-900">Dispositivos Conectados</h2>
+                                                    <p className="text-slate-500">Unidades de disco locais e externas</p>
+                                                </div>
                                                 <motion.div
                                                     variants={staggerContainer}
                                                     initial="hidden"
                                                     animate="visible"
-                                                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                                                    className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6"
                                                 >
                                                     {disks.map(disk => (
                                                         <DiskCard
@@ -362,96 +519,99 @@ export default function Dashboard() {
                                             </section>
                                         )}
 
-                                        {/* Quick Access Folders */}
+                                        {/* Recent files if on home */}
                                         {files.length > 0 && (
                                             <section>
-                                                <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                                                    Acesso Rápido
-                                                </h2>
+                                                <div className="flex items-center justify-between mb-8">
+                                                    <div>
+                                                        <h2 className="text-3xl font-black text-slate-900">Arquivos Rápidos</h2>
+                                                        <p className="text-slate-500">Itens encontrados no diretório pessoal</p>
+                                                    </div>
+                                                </div>
                                                 <FileGrid
-                                                    files={files}
+                                                    files={filteredFiles}
                                                     onFileClick={handleFileClick}
+                                                    onToggleFavorite={handleToggleFavorite}
+                                                    onDelete={handleDelete}
+                                                    viewMode={viewMode}
                                                 />
                                             </section>
                                         )}
                                     </div>
                                 )}
 
-                                {/* CATEGORY VIEW */}
-                                {activeView === "category" && (
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                                            {getCategoryDisplayName(activeCategory)}
-                                        </h2>
-                                        <FileGrid
-                                            files={files}
-                                            onFileClick={handleFileClick}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* FOLDER VIEW */}
-                                {activeView === "home" && currentPath && (
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                                            Conteúdo
-                                        </h2>
-                                        <FileGrid
-                                            files={files}
-                                            onFileClick={handleFileClick}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* RECENT VIEW */}
-                                {activeView === "recent" && (
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                                            Arquivos Recentes
-                                        </h2>
-                                        <FileGrid
-                                            files={files}
-                                            onFileClick={handleFileClick}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* FAVORITES VIEW */}
-                                {activeView === "favorites" && (
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                                            Favoritos
-                                        </h2>
-                                        <FileGrid
-                                            files={files}
-                                            onFileClick={handleFileClick}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* TRASH VIEW */}
-                                {activeView === "trash" && (
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                                            Lixeira
-                                        </h2>
-                                        <FileGrid
-                                            files={files}
-                                            onFileClick={handleFileClick}
-                                        />
-                                    </div>
+                                {/* OTHER VIEWS */}
+                                {(activeView !== "home" || currentPath) && (
+                                    <FileGrid
+                                        files={filteredFiles}
+                                        onFileClick={handleFileClick}
+                                        onToggleFavorite={handleToggleFavorite}
+                                        onDelete={handleDelete}
+                                        viewMode={viewMode}
+                                    />
                                 )}
                             </motion.div>
                         )}
                     </AnimatePresence>
                 </div>
+
+                {/* Upload Status Overlay */}
+                <AnimatePresence>
+                    {isUploading && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="absolute bottom-8 right-8 bg-slate-900 text-white p-6 rounded-3xl shadow-2xl z-50 flex items-center gap-4"
+                        >
+                            <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+                            <div>
+                                <h4 className="font-bold">Enviando Arquivos...</h4>
+                                <p className="text-xs text-white/60">Por favor, aguarde o processamento</p>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </main>
+
+            {/* File Preview Modal */}
+            {previewFile && (
+                <FilePreview
+                    file={previewFile}
+                    onClose={() => {
+                        setPreviewFile(null);
+                        setPreviewIndex(-1);
+                    }}
+                    onNext={hasNextFile() ? handleNextFile : undefined}
+                    onPrevious={hasPreviousFile() ? handlePreviousFile : undefined}
+                    hasNext={hasNextFile()}
+                    hasPrevious={hasPreviousFile()}
+                />
+            )}
+
+            {/* Create Folder Modal */}
+            <CreateFolderModal
+                isOpen={showCreateFolderModal}
+                onClose={() => setShowCreateFolderModal(false)}
+                onCreate={handleNewFolder}
+                disks={disks}
+                currentPath={currentPath}
+            />
+
+            {/* Upload Modal */}
+            <UploadModal
+                isOpen={showUploadModal}
+                onClose={() => setShowUploadModal(false)}
+                onUpload={handleUpload}
+                disks={disks}
+                currentPath={currentPath}
+                onOpenCreateFolder={() => setShowCreateFolderModal(true)}
+            />
         </div>
     );
 }
 
-// Loading Skeleton Component
-function LoadingSkeleton() {
+const LoadingSkeleton: React.FC = () => {
     return (
         <div className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -478,23 +638,5 @@ function LoadingSkeleton() {
                 ))}
             </div>
         </div>
-            </div>
-        </div>
-
-        {/* File Preview Modal */}
-        {previewFile && (
-            <FilePreview
-                file={previewFile}
-                onClose={() => {
-                    setPreviewFile(null);
-                    setPreviewIndex(-1);
-                }}
-                onNext={hasNextFile() ? handleNextFile : undefined}
-                onPrevious={hasPreviousFile() ? handlePreviousFile : undefined}
-                hasNext={hasNextFile()}
-                hasPrevious={hasPreviousFile()}
-            />
-        )}
-    </div>
-);
+    );
 }

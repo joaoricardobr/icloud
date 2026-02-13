@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -14,10 +14,13 @@ import {
     Volume2,
     VolumeX,
     Maximize,
-    FileText
+    FileText,
+    Music,
+    Video,
+    RotateCcw
 } from "lucide-react";
 import { modalBackdrop, modalContent } from "@/lib/animations";
-import { formatBytes } from "@/lib/utils";
+import { formatBytes, cn } from "@/lib/utils";
 
 interface FilePreviewProps {
     file: {
@@ -25,7 +28,7 @@ interface FilePreviewProps {
         path: string;
         size: number;
         isDirectory: boolean;
-        modifiedAt: string;
+        mtime: string;
     } | null;
     onClose: () => void;
     onNext?: () => void;
@@ -46,11 +49,17 @@ export default function FilePreview({
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [error, setError] = useState<string>("");
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const audioRef = useRef<HTMLAudioElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
-    // Reset zoom when file changes
+    // Reset zoom and states when file changes
     useEffect(() => {
         setZoom(100);
         setError("");
+        setIsPlaying(false);
+        setCurrentTime(0);
     }, [file]);
 
     // Close on ESC key
@@ -80,30 +89,11 @@ export default function FilePreview({
     const getFileType = (filename: string): string => {
         const ext = filename.split('.').pop()?.toLowerCase() || '';
 
-        // Images
-        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext)) {
-            return 'image';
-        }
-
-        // Videos
-        if (['mp4', 'webm', 'ogg', 'avi', 'mov', 'mkv', 'flv', 'wmv'].includes(ext)) {
-            return 'video';
-        }
-
-        // Audio
-        if (['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma'].includes(ext)) {
-            return 'audio';
-        }
-
-        // PDF
-        if (ext === 'pdf') {
-            return 'pdf';
-        }
-
-        // Text/Code
-        if (['txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'tsx', 'jsx', 'py', 'java', 'c', 'cpp', 'sh', 'yaml', 'yml'].includes(ext)) {
-            return 'text';
-        }
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext)) return 'image';
+        if (['mp4', 'webm', 'ogg', 'avi', 'mov', 'mkv', 'flv', 'wmv'].includes(ext)) return 'video';
+        if (['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma'].includes(ext)) return 'audio';
+        if (ext === 'pdf') return 'pdf';
+        if (['txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'tsx', 'jsx', 'py', 'java', 'c', 'cpp', 'sh', 'yaml', 'yml'].includes(ext)) return 'text';
 
         return 'unknown';
     };
@@ -120,15 +110,21 @@ export default function FilePreview({
         document.body.removeChild(link);
     };
 
+    const formatTime = (time: number) => {
+        const mins = Math.floor(time / 60);
+        const secs = Math.floor(time % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
     const renderPreview = () => {
         switch (fileType) {
             case 'image':
                 return (
-                    <div className="flex items-center justify-center h-full p-8">
+                    <div className="flex items-center justify-center h-full p-4 md:p-8">
                         <motion.img
                             src={fileUrl}
                             alt={file.name}
-                            className="max-w-full max-h-full object-contain rounded-lg"
+                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
                             style={{ transform: `scale(${zoom / 100})` }}
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
@@ -140,11 +136,13 @@ export default function FilePreview({
 
             case 'video':
                 return (
-                    <div className="flex items-center justify-center h-full p-8">
+                    <div className="flex items-center justify-center h-full p-4 md:p-8 bg-black">
                         <video
+                            ref={videoRef}
                             src={fileUrl}
                             controls
-                            className="max-w-full max-h-full rounded-lg shadow-2xl"
+                            autoPlay
+                            className="max-w-full max-h-full rounded-xl shadow-2xl"
                             onError={() => setError("Erro ao carregar vídeo")}
                         >
                             Seu navegador não suporta reprodução de vídeo.
@@ -154,22 +152,90 @@ export default function FilePreview({
 
             case 'audio':
                 return (
-                    <div className="flex flex-col items-center justify-center h-full p-8 space-y-6">
-                        <div className="w-48 h-48 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-2xl">
-                            <Volume2 className="w-24 h-24 text-white" />
+                    <div className="flex flex-col items-center justify-center h-full p-8 space-y-12">
+                        {/* Vinyl Disc Animation */}
+                        <div className="relative group">
+                            <motion.div
+                                animate={isPlaying ? { rotate: 360 } : {}}
+                                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                                className="w-56 h-56 md:w-72 md:h-72 bg-slate-900 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.3)] relative overflow-hidden border-[12px] border-slate-800"
+                            >
+                                {/* Groove lines */}
+                                <div className="absolute inset-0 rounded-full opacity-30 border-[1px] border-white/20" />
+                                <div className="absolute inset-4 rounded-full opacity-25 border-[1px] border-white/20" />
+                                <div className="absolute inset-8 rounded-full opacity-20 border-[1px] border-white/20" />
+
+                                <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center border-4 border-slate-900 shadow-inner z-10">
+                                    <Music className="w-10 h-10 md:w-14 md:h-14 text-white" />
+                                </div>
+                                <div className="absolute inset-x-0 bottom-12 flex justify-center opacity-40">
+                                    <div className="w-2 h-2 bg-white rounded-full" />
+                                </div>
+                            </motion.div>
+
+                            {/* Stylus / Needle */}
+                            <motion.div
+                                animate={isPlaying ? { rotate: 25 } : { rotate: 0 }}
+                                className="absolute -top-4 -right-8 w-32 h-4 bg-slate-700 rounded-full origin-left z-20 shadow-lg hidden md:block"
+                                style={{ transformOrigin: 'top left' }}
+                            >
+                                <div className="absolute -left-2 top-0 w-8 h-8 bg-slate-800 rounded-full border-4 border-slate-600" />
+                                <div className="absolute right-0 top-2 w-8 h-2 bg-slate-500 rounded-full rotate-45" />
+                            </motion.div>
                         </div>
-                        <div className="text-center">
-                            <h3 className="text-2xl font-bold text-gray-900 mb-2">{file.name}</h3>
-                            <p className="text-gray-500">{formatBytes(file.size)}</p>
+
+                        <div className="text-center space-y-2">
+                            <h3 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight px-4">{file.name}</h3>
+                            <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">{formatBytes(file.size)}</p>
                         </div>
-                        <audio
-                            src={fileUrl}
-                            controls
-                            className="w-full max-w-md"
-                            onError={() => setError("Erro ao carregar áudio")}
-                        >
-                            Seu navegador não suporta reprodução de áudio.
-                        </audio>
+
+                        <div className="w-full max-w-xl bg-white/50 backdrop-blur-xl p-6 rounded-[32px] shadow-xl border border-white/50 space-y-4">
+                            <audio
+                                ref={audioRef}
+                                src={fileUrl}
+                                onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
+                                onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
+                                onPlay={() => setIsPlaying(true)}
+                                onPause={() => setIsPlaying(false)}
+                                className="hidden"
+                                onError={() => setError("Erro ao carregar áudio")}
+                            />
+
+                            {/* Custom Controls */}
+                            <div className="space-y-2">
+                                <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden cursor-pointer">
+                                    <motion.div
+                                        className="h-full bg-blue-600"
+                                        style={{ width: `${(currentTime / duration) * 100}%` }}
+                                    />
+                                </div>
+                                <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <span>{formatTime(currentTime)}</span>
+                                    <span>{formatTime(duration)}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-center gap-8">
+                                <button className="text-slate-400 hover:text-slate-600 transition-colors">
+                                    <RotateCcw size={20} />
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (isPlaying) audioRef.current?.pause();
+                                        else audioRef.current?.play();
+                                    }}
+                                    className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-200 hover:scale-105 active:scale-95 transition-all"
+                                >
+                                    {isPlaying ? <Pause size={28} fill="white" /> : <Play size={28} fill="white" className="ml-1" />}
+                                </button>
+                                <button
+                                    onClick={() => setIsMuted(!isMuted)}
+                                    className="text-slate-400 hover:text-slate-600 transition-colors"
+                                >
+                                    {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 );
 
@@ -178,7 +244,7 @@ export default function FilePreview({
                     <div className="h-full p-4">
                         <iframe
                             src={fileUrl}
-                            className="w-full h-full rounded-lg border-2 border-gray-200"
+                            className="w-full h-full rounded-2xl border border-slate-200 bg-white"
                             title={file.name}
                             onError={() => setError("Erro ao carregar PDF")}
                         />
@@ -187,18 +253,20 @@ export default function FilePreview({
 
             case 'text':
                 return (
-                    <div className="h-full p-8 overflow-auto">
-                        <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b">
-                                <FileText className="w-8 h-8 text-blue-500" />
+                    <div className="h-full p-4 md:p-8 overflow-auto scrollbar-hide">
+                        <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-6 md:p-10 border border-slate-100">
+                            <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-50">
+                                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                                    <FileText size={24} />
+                                </div>
                                 <div>
-                                    <h3 className="text-xl font-bold text-gray-900">{file.name}</h3>
-                                    <p className="text-sm text-gray-500">{formatBytes(file.size)}</p>
+                                    <h3 className="text-xl font-bold text-slate-800">{file.name}</h3>
+                                    <p className="text-sm text-slate-400 font-medium uppercase tracking-widest">{formatBytes(file.size)}</p>
                                 </div>
                             </div>
                             <iframe
                                 src={fileUrl}
-                                className="w-full h-96 border rounded"
+                                className="w-full h-[60vh] border-none rounded-xl"
                                 title={file.name}
                                 onError={() => setError("Erro ao carregar documento")}
                             />
@@ -208,17 +276,19 @@ export default function FilePreview({
 
             default:
                 return (
-                    <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-                        <FileText className="w-24 h-24 text-gray-400 mb-4" />
-                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Preview não disponível</h3>
-                        <p className="text-gray-500 mb-6">
-                            Não é possível visualizar este tipo de arquivo no navegador.
+                    <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-white/50 backdrop-blur-md">
+                        <div className="w-32 h-32 bg-slate-100 rounded-[40px] flex items-center justify-center mb-8 text-slate-300">
+                            <FileText size={56} className="opacity-40" />
+                        </div>
+                        <h3 className="text-3xl font-black text-slate-800 mb-3">Preview não disponível</h3>
+                        <p className="text-slate-500 max-w-md mx-auto mb-10 font-medium leading-relaxed">
+                            Não é possível visualizar este tipo de arquivo diretamente no navegador. Você pode baixá-lo para abrir em seu dispositivo.
                         </p>
                         <button
                             onClick={handleDownload}
-                            className="btn btn-primary"
+                            className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-2xl shadow-slate-200 hover:scale-105 active:scale-95 transition-all"
                         >
-                            <Download className="w-5 h-5" />
+                            <Download size={20} />
                             Baixar Arquivo
                         </button>
                     </div>
@@ -233,7 +303,7 @@ export default function FilePreview({
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl z-[100] flex items-center justify-center p-2 md:p-6"
                 onClick={onClose}
             >
                 <motion.div
@@ -241,72 +311,72 @@ export default function FilePreview({
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden"
+                    className="bg-slate-50 rounded-[40px] shadow-[0_32px_128px_rgba(0,0,0,0.1)] w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden border border-white relative"
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-blue-50 to-purple-50">
-                        <div className="flex-1 min-w-0">
-                            <h2 className="text-xl font-bold text-gray-900 truncate">{file.name}</h2>
-                            <p className="text-sm text-gray-500">
-                                {formatBytes(file.size)} • {new Date(file.modifiedAt).toLocaleDateString('pt-BR')}
+                    <div className="flex items-center justify-between p-5 md:p-7 border-b border-white bg-white/50 backdrop-blur top-0 z-50">
+                        <div className="flex-1 min-w-0 pr-4">
+                            <h2 className="text-lg md:text-xl font-black text-slate-800 truncate tracking-tight">{file.name}</h2>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                {formatBytes(file.size)} • {new Date(file.mtime).toLocaleDateString('pt-BR')}
                             </p>
                         </div>
 
-                        <div className="flex items-center gap-2 ml-4">
+                        <div className="flex items-center gap-1.5 md:gap-3">
                             {/* Zoom controls for images */}
                             {fileType === 'image' && (
-                                <>
+                                <div className="hidden md:flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-100 mr-2 shadow-sm">
                                     <button
                                         onClick={() => setZoom(Math.max(25, zoom - 25))}
-                                        className="p-2 hover:bg-white/50 rounded-lg transition-colors"
-                                        title="Diminuir zoom"
+                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
                                     >
-                                        <ZoomOut className="w-5 h-5" />
+                                        <ZoomOut size={18} />
                                     </button>
-                                    <span className="text-sm font-medium min-w-[4rem] text-center">
+                                    <span className="text-xs font-black min-w-[3rem] text-center text-slate-700">
                                         {zoom}%
                                     </span>
                                     <button
-                                        onClick={() => setZoom(Math.min(200, zoom + 25))}
-                                        className="p-2 hover:bg-white/50 rounded-lg transition-colors"
-                                        title="Aumentar zoom"
+                                        onClick={() => setZoom(Math.min(300, zoom + 25))}
+                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
                                     >
-                                        <ZoomIn className="w-5 h-5" />
+                                        <ZoomIn size={18} />
                                     </button>
-                                    <div className="w-px h-6 bg-gray-300 mx-2" />
-                                </>
+                                </div>
                             )}
 
-                            {/* Download button */}
+                            {/* Action buttons */}
                             <button
                                 onClick={handleDownload}
-                                className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+                                className="p-3 bg-white text-slate-600 rounded-2xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all hover:scale-105 active:scale-95"
                                 title="Baixar arquivo"
                             >
-                                <Download className="w-5 h-5" />
+                                <Download size={20} />
                             </button>
 
-                            {/* Close button */}
                             <button
                                 onClick={onClose}
-                                className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+                                className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg border border-slate-800 hover:bg-slate-800 transition-all hover:scale-105 active:scale-95 ml-2"
                                 title="Fechar (ESC)"
                             >
-                                <X className="w-5 h-5" />
+                                <X size={20} />
                             </button>
                         </div>
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 overflow-hidden bg-gray-50 relative">
+                    <div className="flex-1 overflow-hidden relative group/nav">
                         {error ? (
                             <div className="flex items-center justify-center h-full">
-                                <div className="text-center">
-                                    <p className="text-red-500 font-medium mb-2">{error}</p>
-                                    <button onClick={handleDownload} className="btn btn-primary">
-                                        <Download className="w-5 h-5" />
-                                        Baixar Arquivo
+                                <div className="text-center p-8 bg-white rounded-3xl shadow-xl border border-red-100">
+                                    <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                        <X size={32} />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-900 mb-2">{error}</h3>
+                                    <p className="text-slate-500 mb-8 max-w-xs">Não foi possível carregar este conteúdo. Tente baixar o arquivo.</p>
+                                    <button onClick={handleDownload} className="bg-red-500 text-white px-8 py-4 rounded-xl font-black shadow-lg shadow-red-200">
+                                        <Download size={20} className="inline mr-2" />
+                                        Baixar Agora
                                     </button>
                                 </div>
                             </div>
@@ -315,25 +385,27 @@ export default function FilePreview({
                         )}
 
                         {/* Navigation arrows */}
-                        {hasPrevious && onPrevious && (
-                            <button
-                                onClick={onPrevious}
-                                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 hover:bg-white rounded-full shadow-lg transition-all hover:scale-110"
-                                title="Arquivo anterior (←)"
-                            >
-                                <ChevronLeft className="w-6 h-6" />
-                            </button>
-                        )}
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4 pointer-events-none opacity-0 group-hover/nav:opacity-100 transition-opacity">
+                            {hasPrevious && onPrevious ? (
+                                <button
+                                    onClick={onPrevious}
+                                    className="pointer-events-auto p-5 bg-white shadow-2xl rounded-3xl text-slate-800 hover:bg-slate-900 hover:text-white transition-all hover:scale-110 active:scale-95 border border-slate-100 shadow-slate-200"
+                                    title="Anterior (←)"
+                                >
+                                    <ChevronLeft size={32} />
+                                </button>
+                            ) : <div />}
 
-                        {hasNext && onNext && (
-                            <button
-                                onClick={onNext}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 hover:bg-white rounded-full shadow-lg transition-all hover:scale-110"
-                                title="Próximo arquivo (→)"
-                            >
-                                <ChevronRight className="w-6 h-6" />
-                            </button>
-                        )}
+                            {hasNext && onNext ? (
+                                <button
+                                    onClick={onNext}
+                                    className="pointer-events-auto p-5 bg-white shadow-2xl rounded-3xl text-slate-800 hover:bg-slate-900 hover:text-white transition-all hover:scale-110 active:scale-95 border border-slate-100 shadow-slate-200"
+                                    title="Próximo (→)"
+                                >
+                                    <ChevronRight size={32} />
+                                </button>
+                            ) : <div />}
+                        </div>
                     </div>
                 </motion.div>
             </motion.div>

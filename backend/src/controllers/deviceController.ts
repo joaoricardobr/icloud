@@ -63,7 +63,7 @@ const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_C
                             path: itemPath,
                             size: stats.size,
                             isDirectory: false,
-                            modifiedAt: stats.mtime,
+                            mtime: stats.mtime,
                             category: category,
                             diskLabel: dirPath.startsWith(HOME_DIR) ? 'Home' : path.basename(dirPath)
                         });
@@ -145,6 +145,18 @@ export const getFiles = async (req: Request, res: Response) => {
 
         console.log(`[getFiles] Path: "${queryPath}", Mode: "${mode}", Category: "${category}"`);
 
+        // Get favorites once for efficient tagging
+        const favoritePaths = new Set<string>();
+        try {
+            const favs = await db.collection('favorites').get();
+            favs.docs.forEach(doc => {
+                const p = doc.data().path;
+                if (p) favoritePaths.add(p);
+            });
+        } catch (e) {
+            console.error('[getFiles] Error fetching favorites:', e);
+        }
+
         // Get real disk information
         const allDisks = await si.fsSize();
         const relevantDisks = allDisks
@@ -198,7 +210,8 @@ export const getFiles = async (req: Request, res: Response) => {
                                         path: itemPath,
                                         size: stats.size,
                                         isDirectory: false,
-                                        modifiedAt: stats.mtime,
+                                        mtime: stats.mtime,
+                                        isFavorite: favoritePaths.has(itemPath),
                                         diskLabel: 'Recente'
                                     });
                                 }
@@ -222,7 +235,8 @@ export const getFiles = async (req: Request, res: Response) => {
                             path: filePath,
                             size: stats.size,
                             isDirectory: stats.isDirectory(),
-                            modifiedAt: stats.mtime,
+                            mtime: stats.mtime,
+                            isFavorite: true,
                             diskLabel: 'Favorito'
                         });
                     }
@@ -245,7 +259,8 @@ export const getFiles = async (req: Request, res: Response) => {
                                 path: itemPath,
                                 size: stats.size,
                                 isDirectory: stats.isDirectory(),
-                                modifiedAt: stats.mtime,
+                                mtime: stats.mtime,
+                                isFavorite: favoritePaths.has(itemPath),
                                 diskLabel: 'Lixeira'
                             };
                         } catch (e) {
@@ -268,7 +283,8 @@ export const getFiles = async (req: Request, res: Response) => {
                 path: disk.mount,
                 size: disk.size,
                 isDirectory: true,
-                modifiedAt: new Date(),
+                mtime: new Date(),
+                isFavorite: favoritePaths.has(disk.mount),
                 diskLabel: 'Disco',
                 diskType: disk.type
             }));
@@ -285,7 +301,8 @@ export const getFiles = async (req: Request, res: Response) => {
                 path: uploadsOnline,
                 size: uploadsStats.size,
                 isDirectory: true,
-                modifiedAt: uploadsStats.mtime,
+                mtime: uploadsStats.mtime,
+                isFavorite: favoritePaths.has(uploadsOnline),
                 diskLabel: 'Home'
             });
         }
@@ -333,7 +350,8 @@ export const getFiles = async (req: Request, res: Response) => {
                         path: itemPath,
                         size: itemStats.size,
                         isDirectory: itemStats.isDirectory(),
-                        modifiedAt: itemStats.mtime,
+                        mtime: itemStats.mtime,
+                        isFavorite: favoritePaths.has(itemPath),
                         diskLabel: path.basename(targetDir)
                     });
                 } catch (e) {
