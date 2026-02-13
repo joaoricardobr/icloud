@@ -17,14 +17,25 @@ const logStream = fs.createWriteStream(path.join(logDirectory, 'backend.log'), {
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 
+const formatArgs = (args: any[]) => {
+    return args.map(arg => {
+        if (arg instanceof Error) {
+            return `${arg.message}\n${arg.stack}`;
+        }
+        return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+    }).join(' ');
+};
+
 console.log = function (message, ...optionalParams) {
-    const logMessage = `[LOG] [${new Date().toISOString()}] ${message} ${optionalParams.join(' ')}\n`;
+    const formattedParams = formatArgs(optionalParams);
+    const logMessage = `[LOG] [${new Date().toISOString()}] ${message} ${formattedParams}\n`;
     logStream.write(logMessage);
     originalConsoleLog.apply(console, [message, ...optionalParams]);
 };
 
 console.error = function (message, ...optionalParams) {
-    const errorMessage = `[ERROR] [${new Date().toISOString()}] ${message} ${optionalParams.join(' ')}\n`;
+    const formattedParams = formatArgs(optionalParams);
+    const errorMessage = `[ERROR] [${new Date().toISOString()}] ${message} ${formattedParams}\n`;
     logStream.write(errorMessage);
     originalConsoleError.apply(console, [message, ...optionalParams]);
 };
@@ -60,15 +71,17 @@ app.use(cors({
         // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
 
-        if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('.trycloudflare.com')) {
+        const domainAllowed = allowedOrigins.indexOf(origin) !== -1 || origin.includes('.trycloudflare.com');
+
+        if (domainAllowed) {
             callback(null, true);
         } else {
-            console.warn(`CORS blocked for origin: ${origin}`);
+            console.warn(`CORS blocked for origin: ${origin}. Path: ${origin}`);
             callback(new Error('Not allowed by CORS'));
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'baggage', 'sentry-trace'],
     credentials: true,
     optionsSuccessStatus: 200
 }));

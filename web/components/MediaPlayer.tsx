@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Download, Maximize2, Minimize2, Play, Pause, Volume2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { formatBytes } from "@/lib/utils";
+import api from "@/lib/api";
 
 interface MediaPlayerProps {
     file: {
@@ -29,7 +30,7 @@ export default function MediaPlayer({ file, onClose, apiUrl }: MediaPlayerProps)
         else setType("other");
     }, [file.name]);
 
-    const fileUrl = `${apiUrl}/download?path=${encodeURIComponent(file.path)}`;
+    const fileUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}`;
 
     return (
         <motion.div

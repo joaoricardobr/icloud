@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { modalBackdrop, modalContent } from "@/lib/animations";
 import { formatBytes, cn } from "@/lib/utils";
+import api from "@/lib/api";
 
 interface FilePreviewProps {
     file: {
@@ -99,7 +100,7 @@ export default function FilePreview({
     };
 
     const fileType = getFileType(file.name);
-    const fileUrl = `/api/cloud/download?path=${encodeURIComponent(file.path)}`;
+    const fileUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}`;
 
     const handleDownload = () => {
         const link = document.createElement('a');

@@ -220,7 +220,7 @@ export const getFiles = async (req: Request, res: Response) => {
                     } catch (e) { }
                 }
             }
-            metadata = metadata.sort((a, b) => b.modifiedAt.getTime() - a.modifiedAt.getTime()).slice(0, 50);
+            metadata = metadata.sort((a, b) => b.mtime.getTime() - a.mtime.getTime()).slice(0, 50);
         }
         // MODE: Favorites
         else if (mode === 'favorites') {
