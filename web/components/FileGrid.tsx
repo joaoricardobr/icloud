@@ -101,8 +101,23 @@ export default function FileGrid({
                                                     {selectedPaths.includes(file.path) && <CheckCircle2 size={12} />}
                                                 </div>
                                             )}
-                                            <div className={cn("p-2.5 rounded-xl", color.replace('text-', 'bg-').replace('600', '100'))}>
-                                                <Icon size={20} className={color} />
+                                            <div className={cn(
+                                                "w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0",
+                                                color.replace('text-', 'bg-').replace('600', '100')
+                                            )}>
+                                                {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|mp4|mkv|mov)$/i)) ? (
+                                                    <img
+                                                        src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}`}
+                                                        alt={file.name}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            (e.target as any).style.display = 'none';
+                                                            (e.target as any).parentElement.innerHTML = `<svg class="${color} w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${file.isDirectory ? 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' : 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'}"></path></svg>`;
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <Icon size={20} className={color} />
+                                                )}
                                             </div>
                                             <span className="font-bold text-slate-700 truncate max-w-[150px] md:max-w-xs">{file.name}</span>
                                             {file.isFavorite && <Star size={14} className="fill-yellow-400 text-yellow-400 flex-shrink-0" />}

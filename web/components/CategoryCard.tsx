@@ -38,21 +38,26 @@ export default function CategoryCard({
                 {/* Icon */}
                 <motion.div
                     animate={{
-                        y: [0, -4, 0],
-                        rotate: [0, 2, -2, 0]
+                        y: [0, -8, 0],
+                        scale: [1, 1.05, 1],
+                        rotate: [0, 5, -5, 0]
                     }}
                     transition={{
-                        duration: 4,
+                        duration: 6,
                         repeat: Infinity,
                         ease: "easeInOut"
                     }}
                     className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${gradientColor} flex items-center justify-center shadow-lg mb-4 group-hover:shadow-xl transition-all duration-300 relative group-hover:scale-110`}
                 >
-                    <Icon className="w-8 h-8 text-white relative z-10" />
+                    <Icon className="w-8 h-8 text-white relative z-20" />
+                    {/* Pulsing inner glow */}
                     <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="absolute inset-0 bg-white/20 rounded-2xl blur-lg"
+                        animate={{
+                            scale: [1, 1.3, 1],
+                            opacity: [0.3, 0.6, 0.3]
+                        }}
+                        transition={{ duration: 3, repeat: Infinity }}
+                        className="absolute inset-0 bg-white/30 rounded-2xl blur-xl z-10"
                     />
                 </motion.div>
 
