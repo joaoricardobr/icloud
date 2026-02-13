@@ -5,449 +5,472 @@ import { db } from '../config/firebase';
 import si from 'systeminformation';
 import os from 'os';
 
-const STORAGE_ROOT = '/'; // Changed to root to allow access to /home and /mnt
 const HOME_DIR = os.homedir();
+const TRASH_DIR = path.join(HOME_DIR, '.local', 'share', 'Trash', 'files');
 
-// Helper to sanitize and validate path
-const validatePath = (targetPath: string) => {
-    // If empty or root, return /
-    if (!targetPath || targetPath === '/') return '/';
+// File type categories
+const FILE_CATEGORIES = {
+    imagens: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tiff', '.ico'],
+    videos: ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.flv', '.webm', '.m4v', '.mpeg'],
+    musicas: ['.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac', '.wma', '.opus'],
+    documentos: ['.pdf', '.doc', '.docx', '.txt', '.xlsx', '.pptx', '.csv', '.rtf', '.odt']
+};
 
-    // Standardize to absolute path
-    let absolutePath = targetPath.startsWith('/') ? targetPath : path.resolve('/', targetPath);
+// Helper to validate and sanitize paths
+const validatePath = (targetPath: string): string => {
+    if (!targetPath || targetPath === '') return HOME_DIR;
 
-    // Security: Only allow access to /home, /mnt, /media
-    const allowedRoots = ['/home', '/mnt', '/media'];
-    const isAllowed = allowedRoots.some(root => absolutePath.startsWith(root));
+    // Convert to absolute path
+    let absolutePath = path.resolve(targetPath);
 
-    // If it's a root partition item, we might need it, but let's stick to these for now
-    if (!isAllowed && absolutePath !== '/') {
-        // Log it but allow for now to debug
-        console.log(`[Validation] Accessing outside common roots: ${absolutePath}`);
+    // Security check - prevent directory traversal
+    if (absolutePath.includes('..')) {
+        throw new Error('Invalid path');
     }
 
     return absolutePath;
 };
 
-// File extension maps
-const EXTENSIONS = {
-    imagens: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tiff'],
-    videos: ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.flv', '.webm', '.m4v'],
-    musicas: ['.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac', '.wma'],
-    documentos: ['.pdf', '.doc', '.docx', '.txt', '.xlsx', '.pptx', '.csv', '.rtf'],
-    arquivos: ['.zip', '.rar', '.7z', '.tar', '.gz', '.apk', '.exe', '.deb', '.iso']
-};
+// Scan directory for files by category (limited depth for performance)
+const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_CATEGORIES, maxFiles = 100, depth = 0): any[] => {
+    if (depth > 3 || !fs.existsSync(dirPath)) return [];
 
-const getFilesByCategory = (dir: string, category: keyof typeof EXTENSIONS, depth = 0): any[] => {
-    if (depth > 5) return []; // Limit depth to prevent hanging
-
-    let results: any[] = [];
-    let items: string[] = [];
+    const results: any[] = [];
+    const extensions = FILE_CATEGORIES[category];
 
     try {
-        items = fs.readdirSync(dir);
-    } catch (e) {
-        console.error(`[Search] Erro ao ler diretório ${dir}:`, e);
-        return [];
-    }
+        const items = fs.readdirSync(dirPath);
 
-    const exts = EXTENSIONS[category];
+        for (const item of items) {
+            // Skip hidden and system folders
+            if (item.startsWith('.') || item === 'node_modules' || item === 'snap') continue;
 
-    for (const item of items) {
-        if (item === 'node_modules' || item === '.git' || item === 'dist' || item === '.next' || item.startsWith('.')) continue;
+            const itemPath = path.join(dirPath, item);
 
-        const fullPath = path.join(dir, item);
-        try {
-            const stats = fs.statSync(fullPath);
-            if (stats.isDirectory()) {
-                results = results.concat(getFilesByCategory(fullPath, category, depth + 1));
-            } else {
-                const ext = path.extname(item).toLowerCase();
-                if (exts.includes(ext)) {
-                    results.push({
-                        name: item,
-                        path: fullPath, // Always absolute
-                        size: stats.size,
-                        isDirectory: false,
-                        modifiedAt: stats.mtime
-                    });
+            try {
+                const stats = fs.statSync(itemPath);
+
+                if (stats.isDirectory()) {
+                    // Recursively scan subdirectories
+                    const subResults = scanDirectoryForCategory(itemPath, category, maxFiles - results.length, depth + 1);
+                    results.push(...subResults);
+                } else {
+                    // Check if file matches category
+                    const ext = path.extname(item).toLowerCase();
+                    if (extensions.includes(ext)) {
+                        results.push({
+                            name: item,
+                            path: itemPath,
+                            size: stats.size,
+                            isDirectory: false,
+                            modifiedAt: stats.mtime,
+                            category: category,
+                            diskLabel: dirPath.startsWith(HOME_DIR) ? 'Home' : path.basename(dirPath)
+                        });
+                    }
                 }
-            }
-        } catch (e) { continue; }
-        if (results.length > 500) break;
-    }
-    return results.map(item => ({ ...item, diskLabel: path.basename(dir) === 'UPLOAD CLOUD' ? 'Cloud' : (dir.startsWith(os.homedir()) ? 'Pessoal' : path.basename(dir)) }));
-};
 
-const getHybridFiles = (folderName: string, disks: any[], customRoots: string[] = []): any[] => {
-    let results: any[] = [];
-    const normalizedFolderName = folderName.toLowerCase();
-
-    // Check if it's a standard one or a custom one
-    const isStandard = ['documentos', 'documents', 'vídeos', 'videos', 'imagens', 'pictures', 'música', 'music', 'downloads', 'transferências'].includes(normalizedFolderName);
-    const isCustom = customRoots.map(r => r.toLowerCase()).includes(normalizedFolderName);
-
-    if (!isStandard && !isCustom) return [];
-
-    for (const disk of disks) {
-        const potentialPaths = [
-            path.join(disk.mount, folderName),
-            path.join(disk.mount, 'UPLOAD CLOUD', folderName)
-        ];
-
-        // Handling PT-BR vs EN variations for standard folders
-        if (normalizedFolderName === 'imagens' || normalizedFolderName === 'pictures') {
-            potentialPaths.push(path.join(disk.mount, 'Pictures'), path.join(disk.mount, 'Imagens'));
-        } else if (normalizedFolderName === 'vídeos' || normalizedFolderName === 'videos') {
-            potentialPaths.push(path.join(disk.mount, 'Videos'), path.join(disk.mount, 'Vídeos'));
-        } else if (normalizedFolderName === 'documentos' || normalizedFolderName === 'documents') {
-            potentialPaths.push(path.join(disk.mount, 'Documents'), path.join(disk.mount, 'Documentos'));
-        } else if (normalizedFolderName === 'música' || normalizedFolderName === 'music') {
-            potentialPaths.push(path.join(disk.mount, 'Music'), path.join(disk.mount, 'Música'));
-        }
-
-        for (const p of potentialPaths) {
-            if (fs.existsSync(p) && fs.statSync(p).isDirectory()) {
-                try {
-                    const items = fs.readdirSync(p);
-                    results = results.concat(items.map(item => {
-                        const itemPath = path.join(p, item);
-                        try {
-                            const itemStat = fs.statSync(itemPath);
-                            return {
-                                name: item,
-                                path: itemPath,
-                                size: itemStat.size,
-                                isDirectory: itemStat.isDirectory(),
-                                modifiedAt: itemStat.mtime,
-                                diskLabel: disk.name
-                            };
-                        } catch (e) { return null; }
-                    }).filter(i => i !== null));
-                } catch (e) { continue; }
+                // Limit results for performance
+                if (results.length >= maxFiles) break;
+            } catch (e) {
+                // Skip files we can't access
+                continue;
             }
         }
+    } catch (e) {
+        console.error(`[Scan] Error reading ${dirPath}:`, e);
     }
+
     return results;
 };
 
+// Get category statistics across all disks
+const getCategoryStats = async (disks: any[]) => {
+    const stats: any = {
+        imagens: { count: 0, size: 0, files: [] },
+        videos: { count: 0, size: 0, files: [] },
+        musicas: { count: 0, size: 0, files: [] },
+        documentos: { count: 0, size: 0, files: [] }
+    };
+
+    // Common folders to scan on each disk
+    const commonFolders = [
+        'Imagens', 'Pictures', 'Fotos',
+        'Vídeos', 'Videos', 'Filmes',
+        'Música', 'Music', 'Músicas',
+        'Documentos', 'Documents', 'Docs',
+        'Downloads', 'Transferências', 'Download'
+    ];
+
+    for (const disk of disks) {
+        // Scan home directory if it's the system disk
+        if (disk.mount === '/') {
+            for (const folder of commonFolders) {
+                const folderPath = path.join(HOME_DIR, folder);
+                if (fs.existsSync(folderPath)) {
+                    // Scan for each category
+                    for (const category of Object.keys(FILE_CATEGORIES) as (keyof typeof FILE_CATEGORIES)[]) {
+                        const files = scanDirectoryForCategory(folderPath, category, 20);
+                        stats[category].files.push(...files);
+                        stats[category].count += files.length;
+                        stats[category].size += files.reduce((sum, f) => sum + f.size, 0);
+                    }
+                }
+            }
+        } else {
+            // Scan external disk root and common folders
+            for (const folder of ['', ...commonFolders]) {
+                const folderPath = folder ? path.join(disk.mount, folder) : disk.mount;
+                if (fs.existsSync(folderPath)) {
+                    for (const category of Object.keys(FILE_CATEGORIES) as (keyof typeof FILE_CATEGORIES)[]) {
+                        const files = scanDirectoryForCategory(folderPath, category, 20);
+                        stats[category].files.push(...files);
+                        stats[category].count += files.length;
+                        stats[category].size += files.reduce((sum, f) => sum + f.size, 0);
+                    }
+                }
+            }
+        }
+    }
+
+    return stats;
+};
+
+// Get real disk information and files
 export const getFiles = async (req: Request, res: Response) => {
     try {
         const queryPath = (req.query.path as string) || '';
+        const mode = req.query.mode as string;
         const category = req.query.category as string;
 
-        // Fetch custom roots from Firestore
-        let customRoots: string[] = [];
-        try {
-            const settingsDoc = await db.collection('settings').doc('global').get();
-            if (settingsDoc.exists) {
-                customRoots = settingsDoc.data()?.customRoots || [];
-            }
-        } catch (e) { console.error("Error fetching settings:", e); }
+        console.log(`[getFiles] Path: "${queryPath}", Mode: "${mode}", Category: "${category}"`);
 
-        // System info for panel - Get ALL physical disks
+        // Get real disk information
         const allDisks = await si.fsSize();
-        const relevantDisks = allDisks.filter(d =>
-            d.type.startsWith('dev') ||
-            d.mount === '/' ||
-            d.mount.startsWith('/media') ||
-            d.mount.startsWith('/mnt')
-        ).map(d => ({
-            name: d.mount === '/' ? 'Sistema' : path.basename(d.mount) || 'Disco',
-            mount: d.mount,
-            used: d.used,
-            size: d.size,
-            percent: d.use,
-            type: d.type
-        }));
-
-        // Add Home Directory as a primary 'disk' entry - but inherit stats from /
-        const rootDisk = relevantDisks.find(d => d.mount === '/');
-        relevantDisks.unshift({
-            name: 'Pasta Pessoal',
-            mount: HOME_DIR,
-            used: rootDisk?.used || 0,
-            size: rootDisk?.size || 0,
-            percent: rootDisk?.percent || 0,
-            type: 'home'
-        });
+        const relevantDisks = allDisks
+            .filter(d => {
+                // Only real physical disks
+                const isPhysical = d.fs.startsWith('/dev/sd') || d.fs.startsWith('/dev/nvme');
+                const hasMount = d.mount && d.mount !== '';
+                const notSnap = !d.mount.includes('/snap');
+                return isPhysical && hasMount && notSnap;
+            })
+            .map(d => ({
+                name: d.mount === '/' ? 'Disco Local (Sistema)' : path.basename(d.mount) || d.fs,
+                mount: d.mount,
+                size: d.size,
+                used: d.used,
+                percent: Math.round((d.used / d.size) * 100),
+                type: d.mount === '/' ? 'system' : 'external'
+            }));
 
         let metadata: any[] = [];
+        let categoryStats: any = null;
 
-        if (category && EXTENSIONS[category as keyof typeof EXTENSIONS]) {
-            // Scan ALL relevant disks for categories
-            const categoryExts = EXTENSIONS[category as keyof typeof EXTENSIONS];
+        // MODE: Category view (show files of specific type across all disks)
+        if (category && FILE_CATEGORIES[category as keyof typeof FILE_CATEGORIES]) {
+            console.log(`[Category] Scanning for ${category}...`);
+            const allStats = await getCategoryStats(relevantDisks);
+            metadata = allStats[category].files || [];
+            categoryStats = allStats;
+        }
+        // MODE: Recent files
+        else if (mode === 'recent') {
+            const scanDirs = [
+                HOME_DIR,
+                path.join(HOME_DIR, 'Transferências'),
+                path.join(HOME_DIR, 'Documentos'),
+                path.join(HOME_DIR, 'Downloads')
+            ];
 
-            for (const disk of relevantDisks) {
-                // Common folders to check on each disk
-                const searchPaths = [
-                    disk.mount, // Root
-                    path.join(disk.mount, 'UPLOAD CLOUD'),
-                    ...customRoots.map(cr => path.join(disk.mount, cr)),
-                    ...customRoots.map(cr => path.join(disk.mount, 'UPLOAD CLOUD', cr)),
-                    path.join(disk.mount, 'Imagens'),
-                    path.join(disk.mount, 'Vídeos'),
-                    path.join(disk.mount, 'Música'),
-                    path.join(disk.mount, 'Documentos'),
-                    path.join(disk.mount, 'Download'),
-                    path.join(disk.mount, 'Transferências'),
-                    path.join(disk.mount, 'Downloads'),
-                    path.join(disk.mount, 'Pictures'),
-                    path.join(disk.mount, 'Videos'),
-                    path.join(disk.mount, 'Documents'),
-                    path.join(disk.mount, 'Music')
-                ];
-
-                // If it's the home disk, add user-specific paths
-                if (disk.mount === HOME_DIR || disk.mount === '/') {
-                    searchPaths.push(path.join(HOME_DIR, 'Imagens'));
-                    searchPaths.push(path.join(HOME_DIR, 'Pictures'));
-                    searchPaths.push(path.join(HOME_DIR, 'Vídeos'));
-                    searchPaths.push(path.join(HOME_DIR, 'Videos'));
-                    searchPaths.push(path.join(HOME_DIR, 'Documentos'));
-                    searchPaths.push(path.join(HOME_DIR, 'Documents'));
-                    searchPaths.push(path.join(HOME_DIR, 'Transferências'));
-                    searchPaths.push(path.join(HOME_DIR, 'Downloads'));
+            for (const dir of scanDirs) {
+                if (fs.existsSync(dir)) {
+                    try {
+                        const items = fs.readdirSync(dir);
+                        for (const item of items) {
+                            if (item.startsWith('.')) continue;
+                            const itemPath = path.join(dir, item);
+                            try {
+                                const stats = fs.statSync(itemPath);
+                                if (!stats.isDirectory()) {
+                                    metadata.push({
+                                        name: item,
+                                        path: itemPath,
+                                        size: stats.size,
+                                        isDirectory: false,
+                                        modifiedAt: stats.mtime,
+                                        diskLabel: 'Recente'
+                                    });
+                                }
+                            } catch (e) { }
+                        }
+                    } catch (e) { }
                 }
-
-                for (const searchPath of searchPaths) {
-                    if (fs.existsSync(searchPath)) {
-                        metadata = metadata.concat(getFilesByCategory(searchPath, category as keyof typeof EXTENSIONS));
-                    }
-                    if (metadata.length > 2000) break;
-                }
-                if (metadata.length > 2000) break;
             }
-        } else {
+            metadata = metadata.sort((a, b) => b.modifiedAt.getTime() - a.modifiedAt.getTime()).slice(0, 50);
+        }
+        // MODE: Favorites
+        else if (mode === 'favorites') {
+            try {
+                const favs = await db.collection('favorites').get();
+                for (const doc of favs.docs) {
+                    const filePath = doc.data().path;
+                    if (fs.existsSync(filePath)) {
+                        const stats = fs.statSync(filePath);
+                        metadata.push({
+                            name: path.basename(filePath),
+                            path: filePath,
+                            size: stats.size,
+                            isDirectory: stats.isDirectory(),
+                            modifiedAt: stats.mtime,
+                            diskLabel: 'Favorito'
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('[Favorites] Error:', e);
+            }
+        }
+        // MODE: Trash
+        else if (mode === 'trash') {
+            if (fs.existsSync(TRASH_DIR)) {
+                try {
+                    const items = fs.readdirSync(TRASH_DIR);
+                    metadata = items.map(item => {
+                        const itemPath = path.join(TRASH_DIR, item);
+                        try {
+                            const stats = fs.statSync(itemPath);
+                            return {
+                                name: item,
+                                path: itemPath,
+                                size: stats.size,
+                                isDirectory: stats.isDirectory(),
+                                modifiedAt: stats.mtime,
+                                diskLabel: 'Lixeira'
+                            };
+                        } catch (e) {
+                            return null;
+                        }
+                    }).filter(i => i !== null);
+                } catch (e) {
+                    console.error('[Trash] Error:', e);
+                }
+            }
+        }
+        // HOME VIEW: Show real disks + Uploads Online folder
+        else if (queryPath === '' || queryPath === '/') {
+            // Get category statistics for dashboard
+            categoryStats = await getCategoryStats(relevantDisks);
+
+            // Add real disks
+            metadata = relevantDisks.map(disk => ({
+                name: disk.name,
+                path: disk.mount,
+                size: disk.size,
+                isDirectory: true,
+                modifiedAt: new Date(),
+                diskLabel: 'Disco',
+                diskType: disk.type
+            }));
+
+            // Add Uploads Online folder
+            const uploadsOnline = path.join(HOME_DIR, 'Transferências', 'Uploads Online');
+            if (!fs.existsSync(uploadsOnline)) {
+                fs.mkdirSync(uploadsOnline, { recursive: true });
+            }
+
+            const uploadsStats = fs.statSync(uploadsOnline);
+            metadata.unshift({
+                name: 'Uploads Online 🏠',
+                path: uploadsOnline,
+                size: uploadsStats.size,
+                isDirectory: true,
+                modifiedAt: uploadsStats.mtime,
+                diskLabel: 'Home'
+            });
+        }
+        // REAL DIRECTORY LISTING
+        else {
             const targetDir = validatePath(queryPath);
+
             if (!fs.existsSync(targetDir)) {
                 return res.status(404).json({ error: 'Directory not found' });
             }
 
             const stats = fs.statSync(targetDir);
             if (!stats.isDirectory()) {
-                return res.status(400).json({ error: 'Target is not a directory' });
+                return res.status(400).json({ error: 'Path is not a directory' });
             }
 
+            // Read real directory contents
             let items: string[] = [];
             try {
                 items = fs.readdirSync(targetDir);
             } catch (e) {
                 console.error(`[Readdir] Error reading ${targetDir}:`, e);
-                // Return empty if restricted
-                return res.json({ files: [], stats: { total: 0, used: 0, percent: 0, path: queryPath, allDisks: relevantDisks } });
-            }
-
-            metadata = items.map(item => {
-                const itemPath = path.join(targetDir, item);
-                if (item === 'node_modules' || item === '.git' || item.startsWith('.')) return null;
-
-                try {
-                    const itemStat = fs.statSync(itemPath);
-                    return {
-                        name: item,
-                        path: itemPath, // Always absolute
-                        size: itemStat.size,
-                        isDirectory: itemStat.isDirectory(),
-                        modifiedAt: itemStat.mtime,
-                        diskLabel: currentDisk?.name || 'Sistema'
-                    };
-                } catch (e) {
-                    return null;
-                }
-            }).filter(item => item !== null);
-
-            // HYBRID LOGIC: If opening a standard folder name or custom root, pull from other disks
-            const standardFolders = ['Documentos', 'Vídeos', 'Imagens', 'Música', 'Downloads', 'Transferências', 'Desktop', 'Pictures', 'Videos', 'Documents', 'Music'];
-            const allHybridFolders = [...standardFolders, ...customRoots];
-            const currentFolderName = path.basename(targetDir);
-
-            if (allHybridFolders.some(f => f.toLowerCase() === currentFolderName.toLowerCase())) {
-                const hybridResults = getHybridFiles(currentFolderName, relevantDisks.filter(d => d.mount !== currentDisk?.mount), customRoots);
-                metadata = [...metadata, ...hybridResults];
-            }
-
-            // If at root, also add standard home folders for quick access
-            if (queryPath === '' || queryPath === '/') {
-                const homeFolders = ['Documentos', 'Vídeos', 'Imagens', 'Música', 'Downloads', 'Transferências', 'Desktop', 'Documentos', 'Pictures', 'Videos', 'Music'];
-                const addedFolders = new Set();
-
-                for (const folder of homeFolders) {
-                    const fullFolderPath = path.join(HOME_DIR, folder);
-                    if (fs.existsSync(fullFolderPath) && !addedFolders.has(folder)) {
-                        const stat = fs.statSync(fullFolderPath);
-                        metadata.unshift({
-                            name: folder,
-                            path: fullFolderPath, // Return absolute path for system folders
-                            size: stat.size,
-                            isDirectory: true,
-                            modifiedAt: stat.mtime,
-                            isSystem: true
-                        });
-                        addedFolders.add(folder);
+                return res.json({
+                    files: [],
+                    stats: {
+                        total: 0,
+                        used: 0,
+                        percent: 0,
+                        path: queryPath,
+                        allDisks: relevantDisks
                     }
+                });
+            }
+
+            // Convert to metadata
+            for (const item of items) {
+                // Skip hidden files unless explicitly requested
+                if (item.startsWith('.')) continue;
+
+                const itemPath = path.join(targetDir, item);
+                try {
+                    const itemStats = fs.statSync(itemPath);
+                    metadata.push({
+                        name: item,
+                        path: itemPath,
+                        size: itemStats.size,
+                        isDirectory: itemStats.isDirectory(),
+                        modifiedAt: itemStats.mtime,
+                        diskLabel: path.basename(targetDir)
+                    });
+                } catch (e) {
+                    console.error(`[Stat] Error on ${itemPath}:`, e);
                 }
             }
         }
 
-        // Find current stats for the requested path - find the MOST SPECIFIC mount point
-        const absoluteTarget = category ? STORAGE_ROOT : path.resolve(validatePath(queryPath));
-        let currentDisk = relevantDisks
-            .filter(d => absoluteTarget.startsWith(d.mount))
-            .sort((a, b) => b.mount.length - a.mount.length)[0] || relevantDisks[0];
+        // Calculate storage stats for current path
+        let storageStats = {
+            total: 0,
+            used: 0,
+            percent: 0,
+            path: queryPath,
+            allDisks: relevantDisks,
+            categories: categoryStats
+        };
+
+        // Find which disk this path belongs to
+        if (queryPath) {
+            const disk = relevantDisks.find(d => queryPath.startsWith(d.mount));
+            if (disk) {
+                storageStats.total = disk.size;
+                storageStats.used = disk.used;
+                storageStats.percent = disk.percent;
+            }
+        }
 
         res.json({
-            files: metadata.map(f => ({
-                ...f,
-                hasThumbnail: !f.isDirectory && (
-                    EXTENSIONS.imagens.includes(path.extname(f.name).toLowerCase()) ||
-                    EXTENSIONS.videos.includes(path.extname(f.name).toLowerCase())
-                )
-            })),
-            stats: {
-                total: currentDisk?.size,
-                used: currentDisk?.used,
-                percent: currentDisk?.percent,
-                path: queryPath,
-                allDisks: relevantDisks
-            }
+            files: metadata,
+            stats: storageStats
         });
+
     } catch (error: any) {
+        console.error('[getFiles] Error:', error);
         res.status(500).json({ error: error.message });
     }
 };
 
-export const uploadFile = (req: Request, res: Response) => {
-    const files = req.files as Express.Multer.File[];
-    const targetPath = (req.body.path as string) || '';
-
-    if (!files || files.length === 0) {
-        return res.status(400).json({ error: 'No files uploaded' });
-    }
-
-    // Ensure UPLOAD CLOUD exists if it's a disk root
-    try {
-        if (targetPath && fs.existsSync(targetPath)) {
-            const stats = fs.statSync(targetPath);
-            if (stats.isDirectory()) {
-                const cloudFolder = path.join(targetPath, 'UPLOAD CLOUD');
-                if (!fs.existsSync(cloudFolder) && targetPath.length < 15) { // Likely a disk root like /mnt/disk1
-                    fs.mkdirSync(cloudFolder, { recursive: true });
-                }
-            }
-        }
-    } catch (e) {
-        console.error("Error creating UPLOAD CLOUD:", e);
-    }
-
-    res.json({
-        message: `${files.length} file(s) uploaded successfully`,
-        files: files.map(f => f.filename)
-    });
-};
-
-export const downloadFile = (req: Request, res: Response) => {
+// Download file
+export const downloadFile = async (req: Request, res: Response) => {
     try {
         const filePath = req.query.path as string;
-        if (!filePath) return res.status(400).json({ error: 'Path required' });
+        if (!filePath) {
+            return res.status(400).json({ error: 'Path is required' });
+        }
 
-        const fullPath = validatePath(filePath);
-        if (!fs.existsSync(fullPath)) {
+        const absolutePath = validatePath(filePath);
+
+        if (!fs.existsSync(absolutePath)) {
             return res.status(404).json({ error: 'File not found' });
         }
 
-        res.download(fullPath);
+        res.download(absolutePath);
     } catch (error: any) {
+        console.error('[downloadFile] Error:', error);
         res.status(500).json({ error: error.message });
     }
 };
 
-export const deleteFile = (req: Request, res: Response) => {
+// Upload file (handled by multer in routes)
+export const uploadFile = async (req: Request, res: Response) => {
     try {
-        const filePath = req.query.path as string;
-        if (!filePath) return res.status(400).json({ error: 'Path required' });
-
-        const fullPath = validatePath(filePath);
-        if (!fs.existsSync(fullPath)) {
-            return res.status(404).json({ error: 'Target not found' });
-        }
-
-        if (fs.statSync(fullPath).isDirectory()) {
-            fs.rmSync(fullPath, { recursive: true });
-        } else {
-            fs.unlinkSync(fullPath);
-        }
-
-        res.json({ message: 'Deleted successfully' });
+        res.json({ message: 'Files uploaded successfully', files: req.files });
     } catch (error: any) {
+        console.error('[uploadFile] Error:', error);
         res.status(500).json({ error: error.message });
     }
 };
 
-export const createFolder = (req: Request, res: Response) => {
+// Delete file or folder
+export const deleteFile = async (req: Request, res: Response) => {
     try {
-        const { folderName, parentPath } = req.body;
-        if (!folderName) return res.status(400).json({ error: 'Folder name required' });
-
-        const targetDir = validatePath(path.join(parentPath || '', folderName));
-
-        if (fs.existsSync(targetDir)) {
-            return res.status(409).json({ error: 'Folder already exists' });
+        const filePath = req.body.path as string;
+        if (!filePath) {
+            return res.status(400).json({ error: 'Path is required' });
         }
 
-        fs.mkdirSync(targetDir, { recursive: true });
-        res.json({ message: 'Folder created successfully' });
+        const absolutePath = validatePath(filePath);
+
+        if (!fs.existsSync(absolutePath)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        // Move to trash instead of permanent delete
+        if (!fs.existsSync(TRASH_DIR)) {
+            fs.mkdirSync(TRASH_DIR, { recursive: true });
+        }
+
+        const fileName = path.basename(absolutePath);
+        const trashPath = path.join(TRASH_DIR, fileName);
+
+        fs.renameSync(absolutePath, trashPath);
+
+        res.json({ message: 'File moved to trash successfully' });
     } catch (error: any) {
+        console.error('[deleteFile] Error:', error);
         res.status(500).json({ error: error.message });
     }
 };
 
-import sharp from 'sharp';
-import ffmpeg from 'fluent-ffmpeg';
+// Create folder
+export const createFolder = async (req: Request, res: Response) => {
+    try {
+        const { path: folderPath, name } = req.body;
 
+        if (!name) {
+            return res.status(400).json({ error: 'Folder name is required' });
+        }
+
+        const parentPath = validatePath(folderPath || HOME_DIR);
+        const newFolderPath = path.join(parentPath, name);
+
+        if (fs.existsSync(newFolderPath)) {
+            return res.status(400).json({ error: 'Folder already exists' });
+        }
+
+        fs.mkdirSync(newFolderPath, { recursive: true });
+
+        res.json({ message: 'Folder created successfully', path: newFolderPath });
+    } catch (error: any) {
+        console.error('[createFolder] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Get thumbnail
 export const getThumbnail = async (req: Request, res: Response) => {
     try {
         const filePath = req.query.path as string;
-        if (!filePath) return res.status(400).json({ error: 'Path required' });
-
-        const fullPath = validatePath(filePath);
-        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found' });
-
-        const ext = path.extname(fullPath).toLowerCase();
-
-        if (EXTENSIONS.imagens.includes(ext)) {
-            const buffer = await sharp(fullPath)
-                .resize(200, 200, { fit: 'cover' })
-                .toFormat('jpeg')
-                .toBuffer();
-            res.set('Content-Type', 'image/jpeg');
-            return res.send(buffer);
+        if (!filePath) {
+            return res.status(400).json({ error: 'Path is required' });
         }
 
-        if (EXTENSIONS.videos.includes(ext)) {
-            const thumbName = `thumb-${path.basename(fullPath)}.jpg`;
-            const thumbPath = path.join('/tmp', thumbName);
-
-            ffmpeg(fullPath)
-                .screenshots({
-                    timestamps: ['00:00:01'],
-                    filename: thumbName,
-                    folder: '/tmp',
-                    size: '200x200'
-                })
-                .on('end', () => {
-                    res.sendFile(thumbPath, () => {
-                        if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
-                    });
-                })
-                .on('error', (err) => {
-                    res.status(500).json({ error: 'Thumbnail failed' });
-                });
-            return;
-        }
-
-        res.status(400).json({ error: 'Unsupported thumbnail type' });
+        res.json({ hasThumbnail: false });
     } catch (error: any) {
+        console.error('[getThumbnail] Error:', error);
         res.status(500).json({ error: error.message });
     }
 };

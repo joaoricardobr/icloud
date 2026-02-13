@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { LayoutGrid, Search, Plus, Bell, HardDrive, Clock, Star, Trash2, Zap, Settings, ChevronRight, Folder, FileText, Image as ImageIcon, Video, Music, File, MoreVertical, X, Info, LogOut, FolderPlus, Upload, Archive, Smartphone, Download, List, User, ArrowUpRight, ArrowLeft, Share2, Loader2, CheckCircle2, UserPlus, FolderSearch, FolderCheck } from "lucide-react";
+import { useState, useEffect } from "react";
+import { HardDrive, Folder, FileText, Image as ImageIcon, Video, Music, File, Clock, Star, Trash2, Settings, LogOut, ChevronRight, Home, Search, Plus, Upload, MoreVertical } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
-import MediaPlayer from "./MediaPlayer";
 
 interface FileItem {
     name: string;
@@ -15,7 +13,6 @@ interface FileItem {
     size: number;
     isDirectory: boolean;
     modifiedAt: string;
-    hasThumbnail?: boolean;
     diskLabel?: string;
 }
 
@@ -25,1040 +22,275 @@ interface Disk {
     size: number;
     used: number;
     percent: number;
-    type?: string;
-}
-
-interface DashboardStats {
-    total: number;
-    used: number;
-    percent: number;
-    path: string;
-    allDisks: Disk[];
 }
 
 export default function Dashboard() {
-    const [files, setFiles] = useState<FileItem[]>([]);
-    const [stats, setStats] = useState<DashboardStats | null>(null);
     const [currentPath, setCurrentPath] = useState("");
+    const [files, setFiles] = useState<FileItem[]>([]);
+    const [disks, setDisks] = useState<Disk[]>([]);
     const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [activeTab, setActiveTab] = useState("dashboard");
-    const [activeCategory, setActiveCategory] = useState<string | null>(null);
-    const [showNewMenu, setShowNewMenu] = useState(false);
-    const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [showRightPanel, setShowRightPanel] = useState(false);
-    const [isSelectingDestination, setIsSelectingDestination] = useState(false);
-    const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [uploadSummary, setUploadSummary] = useState<string[] | null>(null);
+    const [activeView, setActiveView] = useState<"home" | "recent" | "favorites" | "trash">("home");
 
-    // Settings & User Mgmt State
-    const [customRoots, setCustomRoots] = useState<string[]>([]);
-    const [newRoot, setNewRoot] = useState('');
-    const [newUser, setNewUser] = useState({ email: '', password: '', displayName: '' });
-    const [settingsLoading, setSettingsLoading] = useState(false);
-
-    const fetchData = useCallback(async (path = "", category: string | null = null) => {
+    // Fetch data from backend
+    const fetchData = async (path: string = "", mode?: string) => {
         setLoading(true);
         try {
-            const url = category
-                ? `/files?category=${encodeURIComponent(category)}`
-                : `/files?path=${encodeURIComponent(path)}`;
-            const response = await api.get(url);
-            setFiles(response.data.files);
-            setStats(response.data.stats);
-            if (!category) {
+            const params = new URLSearchParams();
+            if (mode) params.append('mode', mode);
+            if (path) params.append('path', path);
+
+            const response = await api.get(`/files?${params.toString()}`);
+            setFiles(response.data.files || []);
+            setDisks(response.data.stats?.allDisks || []);
+
+            if (!mode) {
                 setCurrentPath(path);
-                setActiveCategory(null);
-            } else {
-                setActiveCategory(category);
-                setCurrentPath("");
             }
         } catch (err) {
-            console.error("Erro ao buscar arquivos", err);
+            console.error("Error fetching files:", err);
         } finally {
             setLoading(false);
         }
-    }, []);
-
-    const handleFileUpload = async (files: FileList | null, destinationPath: string) => {
-        if (!files || files.length === 0) return;
-
-        const formData = new FormData();
-        Array.from(files).forEach(file => {
-            formData.append('files', file);
-        });
-        formData.append('path', destinationPath);
-
-        setLoading(true);
-        setUploadProgress(0);
-        try {
-            const response = await api.post('/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-                onUploadProgress: (progressEvent) => {
-                    const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
-                    setUploadProgress(percentCompleted);
-                }
-            });
-            setUploadSummary(Array.from(files).map(f => f.name));
-            fetchData(currentPath);
-        } catch (err) {
-            console.error("Upload failed", err);
-        } finally {
-            setLoading(false);
-            setUploadProgress(0);
-            setShowNewMenu(false);
-        }
     };
 
-    const handleFileSelectionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            setUploadingFiles(Array.from(e.target.files));
-            setIsSelectingDestination(true);
-        }
+    // Navigate to a path
+    const navigateTo = (path: string) => {
+        setActiveView("home");
+        fetchData(path);
     };
 
-    const handleCreateFolder = async () => {
-        const folderName = prompt("Nome da pasta:");
-        if (!folderName) return;
-
-        setLoading(true);
-        try {
-            await api.post('/create-folder', { folderName, parentPath: currentPath });
-            fetchData(currentPath);
-        } catch (err) {
-            console.error("Failed to create folder", err);
-        } finally {
-            setLoading(false);
-            setShowNewMenu(false);
-        }
-    };
-
+    // Initial load
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
-
-    const handleLogout = () => signOut(auth);
-
-    const fetchSettings = useCallback(async () => {
-        try {
-            const res = await api.get('/settings');
-            setCustomRoots(res.data.customRoots || []);
-        } catch (err) { console.error("Error fetching settings", err); }
     }, []);
 
-    const saveSettings = async (roots: string[]) => {
-        setSettingsLoading(true);
-        try {
-            await api.post('/settings', { customRoots: roots });
-            setCustomRoots(roots);
-        } catch (err) { console.error("Error saving settings", err); }
-        finally { setSettingsLoading(false); }
-    };
-
-    const handleAddRoot = () => {
-        if (!newRoot || customRoots.includes(newRoot)) return;
-        saveSettings([...customRoots, newRoot]);
-        setNewRoot('');
-    };
-
-    const handleRemoveRoot = (root: string) => {
-        saveSettings(customRoots.filter(r => r !== root));
-    };
-
-    const handleCreateUser = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSettingsLoading(true);
-        try {
-            await api.post('/users', newUser);
-            alert('Usuário criado com sucesso e autorizado no Firebase!');
-            setNewUser({ email: '', password: '', displayName: '' });
-        } catch (err: any) {
-            alert('Erro ao criar usuário: ' + (err.response?.data?.error || err.message));
-        } finally { setSettingsLoading(false); }
-    };
-
-    useEffect(() => {
-        if (activeTab === 'settings') fetchSettings();
-    }, [activeTab, fetchSettings]);
-
-    const filteredFolders = useMemo(() =>
-        activeCategory || activeTab === "computer" ? [] : files.filter(f => f.isDirectory && f.name.toLowerCase().includes(searchQuery.toLowerCase())),
-        [files, searchQuery, activeCategory, activeTab]
-    );
-
-    const filteredFiles = useMemo(() =>
-        activeTab === "computer" ? [] : files.filter(f => !f.isDirectory && f.name.toLowerCase().includes(searchQuery.toLowerCase())),
-        [files, searchQuery, activeTab]
-    );
-
-    const EXTENSIONS_LIST = {
-        imagens: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tiff'],
-        videos: ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.flv', '.webm', '.m4v'],
-        musicas: ['.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac', '.wma'],
-        documentos: ['.pdf', '.doc', '.docx', '.txt', '.xlsx', '.pptx', '.csv', '.rtf'],
-        arquivos: ['.zip', '.rar', '.7z', '.tar', '.gz', '.apk', '.exe', '.deb', '.iso']
-    };
-
-    const getTypeStats = useMemo(() => {
-        const calculateStats = (cat: keyof typeof EXTENSIONS_LIST) => {
-            const catFiles = files.filter(f => {
-                const ext = '.' + f.name.split('.').pop()?.toLowerCase();
-                return !f.isDirectory && EXTENSIONS_LIST[cat].includes(ext);
-            });
-            return {
-                count: catFiles.length,
-                size: formatBytes(catFiles.reduce((acc, f) => acc + f.size, 0))
-            };
-        };
-
-        const img = calculateStats('imagens');
-        const vid = calculateStats('videos');
-        const doc = calculateStats('documentos');
-        const mus = calculateStats('musicas');
-        const others = {
-            count: files.filter(f => !f.isDirectory).length - (img.count + vid.count + doc.count + mus.count),
-            size: formatBytes(files.filter(f => !f.isDirectory).reduce((acc, f) => acc + f.size, 0) - (files.filter(f => {
-                const ext = '.' + f.name.split('.').pop()?.toLowerCase();
-                return !f.isDirectory && [...EXTENSIONS_LIST.imagens, ...EXTENSIONS_LIST.videos, ...EXTENSIONS_LIST.documentos, ...EXTENSIONS_LIST.musicas].includes(ext);
-            }).reduce((acc, f) => acc + f.size, 0)))
-        };
-
-        return [
-            { id: 'documentos', label: 'Documentos', icon: <FileText className="w-5 h-5" />, color: 'text-amber-500', bg: 'bg-amber-500/10', size: doc.size, count: `${doc.count} Arquivos` },
-            { id: 'imagens', label: 'Imagens', icon: <ImageIcon className="w-5 h-5" />, color: 'text-blue-500', bg: 'bg-blue-500/10', size: img.size, count: `${img.count} Fotos` },
-            { id: 'videos', label: 'Vídeos', icon: <Video className="w-5 h-5" />, color: 'text-red-500', bg: 'bg-red-500/10', size: vid.size, count: `${vid.count} Vídeos` },
-            { id: 'musicas', label: 'Músicas', icon: <Music className="w-5 h-5" />, color: 'text-purple-500', bg: 'bg-purple-500/10', size: mus.size, count: `${mus.count} Músicas` },
-            { id: 'others', label: 'Outros', icon: <File className="w-5 h-5" />, color: 'text-pink-500', bg: 'bg-pink-500/10', size: others.size, count: `${others.count} Arquivos` },
-        ];
-    }, [files]);
-
+    // Get file icon
     const getFileIcon = (file: FileItem) => {
-        const name = file.name.toLowerCase();
-
-        // Standard folder mapping
-        if (file.isDirectory) {
-            if (name.includes('documento')) return <FileText className="w-full h-full text-blue-600 drop-shadow-sm" />;
-            if (name.includes('vídeo') || name.includes('video')) return <Video className="w-full h-full text-rose-600 drop-shadow-sm" />;
-            if (name.includes('imagem') || name.includes('picture')) return <ImageIcon className="w-full h-full text-emerald-600 drop-shadow-sm" />;
-            if (name.includes('música') || name.includes('music')) return <Music className="w-full h-full text-violet-600 drop-shadow-sm" />;
-            if (name.includes('download') || name.includes('transfer')) return <Download className="w-full h-full text-amber-600 drop-shadow-sm" />;
-            if (name.includes('desktop') || name.includes('área de trabalho')) return <LayoutGrid className="w-full h-full text-sky-600 drop-shadow-sm" />;
-            return <Folder className="w-full h-full fill-blue-600/20 text-blue-600 drop-shadow-sm" />;
-        }
-
-        // Show thumbnail if available
-        if (file.hasThumbnail) {
-            const thumbUrl = `${process.env.NEXT_PUBLIC_API_URL || "https://cadillac-editions-transaction-plymouth.trycloudflare.com/api/cloud"}/thumbnail?path=${encodeURIComponent(file.path)}`;
-            return (
-                <div className="w-full h-full rounded-lg overflow-hidden bg-zinc-100 flex items-center justify-center">
-                    <img src={thumbUrl} alt={file.name} className="w-full h-full object-cover" />
-                </div>
-            );
-        }
+        if (file.isDirectory) return <Folder className="w-6 h-6 text-blue-500" />;
 
         const ext = file.name.split('.').pop()?.toLowerCase();
-        switch (ext) {
-            case 'pdf': return <FileText className="w-full h-full text-red-500" />;
-            case 'doc':
-            case 'docx':
-            case 'txt': return <FileText className="w-full h-full text-blue-500" />;
-            case 'jpg':
-            case 'jpeg':
-            case 'png':
-            case 'gif': return <ImageIcon className="w-full h-full text-emerald-500" />;
-            case 'mp4':
-            case 'mkv':
-            case 'mov': return <Video className="w-full h-full text-red-500" />;
-            case 'mp3':
-            case 'wav': return <Music className="w-full h-full text-purple-500" />;
-            case 'zip':
-            case 'rar':
-            case '7z': return <Archive className="w-full h-full text-amber-500" />;
-            case 'apk': return <Smartphone className="w-full h-full text-green-500" />;
-            default: return <File className="w-full h-full text-zinc-400" />;
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) {
+            return <ImageIcon className="w-6 h-6 text-green-500" />;
         }
+        if (['mp4', 'mkv', 'avi', 'mov', 'webm'].includes(ext || '')) {
+            return <Video className="w-6 h-6 text-purple-500" />;
+        }
+        if (['mp3', 'wav', 'flac', 'm4a', 'ogg'].includes(ext || '')) {
+            return <Music className="w-6 h-6 text-pink-500" />;
+        }
+        if (['pdf', 'doc', 'docx', 'txt', 'xlsx'].includes(ext || '')) {
+            return <FileText className="w-6 h-6 text-red-500" />;
+        }
+        return <File className="w-6 h-6 text-gray-500" />;
+    };
+
+    // Generate breadcrumbs
+    const getBreadcrumbs = () => {
+        if (!currentPath) return [{ name: "Home", path: "" }];
+
+        const parts = currentPath.split('/').filter(Boolean);
+        const breadcrumbs = [{ name: "Home", path: "" }];
+
+        let accumulatedPath = "";
+        parts.forEach(part => {
+            accumulatedPath += `/${part}`;
+            breadcrumbs.push({ name: part, path: accumulatedPath });
+        });
+
+        return breadcrumbs;
+    };
+
+    const handleLogout = async () => {
+        await signOut(auth);
+        window.location.href = "/";
     };
 
     return (
-        <div className="flex h-screen bg-[#FDFEFE] text-zinc-900 font-sans overflow-hidden">
-            {/* 1. Sidebar Left - Responsive */}
-            <aside className={cn(
-                "fixed inset-y-0 left-0 w-72 bg-[#FDFEFE] border-r border-zinc-100 flex flex-col z-50 px-6 py-8 transition-transform duration-300 lg:relative lg:translate-x-0",
-                mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-            )}>
-                <div className="flex items-center justify-between mb-10 pl-2">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-xl">C</div>
-                        <span className="font-bold text-xl tracking-tight text-blue-900">CloudDesk</span>
-                    </div>
-                    <button onClick={() => setMobileMenuOpen(false)} className="lg:hidden p-2 text-zinc-400 hover:bg-zinc-100 rounded-xl">
-                        <X size={20} />
+        <div className="flex h-screen bg-gray-50">
+            {/* Sidebar */}
+            <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
+                <div className="p-6">
+                    <h1 className="text-2xl font-bold text-gray-900">CloudDesk</h1>
+                </div>
+
+                <nav className="flex-1 px-3">
+                    <button
+                        onClick={() => { setActiveView("home"); fetchData(""); }}
+                        className={cn(
+                            "w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors",
+                            activeView === "home" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
+                        )}
+                    >
+                        <Home size={20} />
+                        <span className="font-medium">Início</span>
                     </button>
-                </div>
 
-                <nav className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
-                    <div className="space-y-1">
-                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-5 mb-2">Principal</p>
-                        <SidebarItem icon={<LayoutGrid size={18} />} label="Início" active={activeTab === "dashboard"} onClick={() => { setActiveTab("dashboard"); fetchData(""); setMobileMenuOpen(false); }} />
-                        <SidebarItem icon={<HardDrive size={18} />} label="Meu computador" active={activeTab === "computer"} onClick={() => { setActiveTab("computer"); setMobileMenuOpen(false); }} />
-                        <SidebarItem icon={<Clock size={18} />} label="Recentes" active={activeTab === "recent"} onClick={() => { setActiveTab("recent"); setMobileMenuOpen(false); }} />
-                        <SidebarItem icon={<Star size={18} />} label="Favoritos" active={activeTab === "favorites"} onClick={() => { setActiveTab("favorites"); setMobileMenuOpen(false); }} />
-                        <SidebarItem icon={<Trash2 size={18} />} label="Lixeira" active={activeTab === "trash"} onClick={() => { setActiveTab("trash"); setMobileMenuOpen(false); }} />
-                    </div>
+                    <button
+                        onClick={() => { setActiveView("recent"); fetchData("", "recent"); }}
+                        className={cn(
+                            "w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors",
+                            activeView === "recent" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
+                        )}
+                    >
+                        <Clock size={20} />
+                        <span className="font-medium">Recentes</span>
+                    </button>
 
-                    <div className="space-y-1 pt-4">
-                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-5 mb-2">Categorias</p>
-                        <SidebarItem icon={<ImageIcon size={18} />} label="Imagens" active={activeCategory === "imagens"} onClick={() => { fetchData("", "imagens"); setMobileMenuOpen(false); }} />
-                        <SidebarItem icon={<Video size={18} />} label="Vídeos" active={activeCategory === "videos"} onClick={() => { fetchData("", "videos"); setMobileMenuOpen(false); }} />
-                        <SidebarItem icon={<Music size={18} />} label="Músicas" active={activeCategory === "musicas"} onClick={() => { fetchData("", "musicas"); setMobileMenuOpen(false); }} />
-                        <SidebarItem icon={<FileText size={18} />} label="Documentos" active={activeCategory === "documentos"} onClick={() => { fetchData("", "documentos"); setMobileMenuOpen(false); }} />
-                        <SidebarItem icon={<File size={18} />} label="Arquivos" active={activeCategory === "arquivos"} onClick={() => { fetchData("", null); setMobileMenuOpen(false); }} />
-                    </div>
+                    <button
+                        onClick={() => { setActiveView("favorites"); fetchData("", "favorites"); }}
+                        className={cn(
+                            "w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors",
+                            activeView === "favorites" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
+                        )}
+                    >
+                        <Star size={20} />
+                        <span className="font-medium">Favoritos</span>
+                    </button>
 
-                    <div className="space-y-1 pt-4">
-                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-5 mb-2">Sistema</p>
-                        <SidebarItem icon={<Zap size={18} />} label="Limpeza" active={activeTab === "clean"} onClick={() => { setActiveTab("clean"); setMobileMenuOpen(false); }} />
-                        <SidebarItem icon={<Settings size={18} />} label="Configurações" active={activeTab === "settings"} onClick={() => { setActiveTab("settings"); setMobileMenuOpen(false); }} />
-                        <SidebarItem icon={<LogOut size={18} />} label="Sair" onClick={handleLogout} />
-                    </div>
+                    <button
+                        onClick={() => { setActiveView("trash"); fetchData("", "trash"); }}
+                        className={cn(
+                            "w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors",
+                            activeView === "trash" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
+                        )}
+                    >
+                        <Trash2 size={20} />
+                        <span className="font-medium">Lixeira</span>
+                    </button>
+
+                    <div className="border-t border-gray-200 my-4"></div>
+
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                        <LogOut size={20} />
+                        <span className="font-medium">Sair</span>
+                    </button>
                 </nav>
-
-                {/* Upgrade Card */}
-                <div className="mt-auto bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-[32px] border border-blue-100 text-center relative overflow-hidden group">
-                    <div className="relative z-10">
-                        <div className="w-16 h-16 mx-auto mb-4 bg-white rounded-full flex items-center justify-center shadow-sm">
-                            <motion.div animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 2 }}>
-                                <Zap size={24} className="text-blue-600 fill-blue-600" />
-                            </motion.div>
-                        </div>
-                        <p className="text-[11px] font-bold text-blue-400 uppercase tracking-widest mb-1">Assinante Pro</p>
-                        <p className="text-sm font-bold text-blue-900 mb-4 px-2 leading-tight">Armazenamento ilimitado ativado!</p>
-                        <button className="text-[11px] font-black text-blue-600 uppercase tracking-widest hover:underline">Ver Planos</button>
-                    </div>
-                    {/* Cloudo Mascot Placeholder - Modern Style */}
-                    <div className="absolute -bottom-4 -right-4 w-24 h-24 opacity-5 group-hover:opacity-10 transition-opacity">
-                        <HardDrive size={120} />
-                    </div>
-                </div>
             </aside>
 
-            {/* 2. Main Center Content */}
-            <main className="flex-1 flex flex-col bg-[#FDFEFE] border-r border-zinc-100 overflow-hidden">
-                {/* Top Search Bar */}
-                <header className="h-24 flex items-center gap-4 md:gap-6 px-6 md:px-10 shrink-0">
-                    <button
-                        onClick={() => setMobileMenuOpen(true)}
-                        className="lg:hidden p-3 bg-zinc-50 text-zinc-600 rounded-xl hover:bg-zinc-100 transition-all border border-zinc-100"
-                    >
-                        <LayoutGrid size={20} />
-                    </button>
-
-                    <div className="flex-1 relative">
-                        <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                        <input
-                            type="text"
-                            placeholder="Pesquise..."
-                            className="w-full bg-[#F4F7F9] border-none rounded-2xl py-3.5 pl-14 pr-6 text-sm font-medium focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-zinc-400"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowNewMenu(!showNewMenu)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white p-3.5 md:px-6 md:py-3.5 rounded-2xl flex items-center gap-3 transition-all font-bold text-sm shadow-lg shadow-blue-500/20 active:scale-95"
-                        >
-                            <Plus size={20} />
-                            <span className="hidden md:inline">Criar Novo</span>
-                        </button>
-
-                        <AnimatePresence>
-                            {showNewMenu && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 10 }}
-                                    className="absolute right-0 mt-3 w-56 bg-white border border-zinc-100 rounded-[24px] shadow-2xl shadow-black/5 p-2 z-50 overflow-hidden"
-                                >
+            {/* Main Content */}
+            <main className="flex-1 flex flex-col overflow-hidden">
+                {/* Header */}
+                <header className="bg-white border-b border-gray-200 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        {/* Breadcrumbs */}
+                        <div className="flex items-center gap-2 text-sm">
+                            {getBreadcrumbs().map((crumb, index) => (
+                                <div key={crumb.path} className="flex items-center gap-2">
+                                    {index > 0 && <ChevronRight size={16} className="text-gray-400" />}
                                     <button
-                                        onClick={() => document.getElementById('file-upload')?.click()}
-                                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 rounded-xl transition-all text-sm font-bold text-zinc-600"
-                                    >
-                                        <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
-                                            <Upload size={16} />
-                                        </div>
-                                        Upload de Arquivos
-                                    </button>
-                                    <button
-                                        onClick={handleCreateFolder}
-                                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 rounded-xl transition-all text-sm font-bold text-zinc-600"
-                                    >
-                                        <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
-                                            <FolderPlus size={16} />
-                                        </div>
-                                        Nova Pasta
-                                    </button>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-
-                    <input
-                        id="file-upload"
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={handleFileSelectionChange}
-                    />
-
-                    <button
-                        onClick={() => setShowRightPanel(!showRightPanel)}
-                        className="xl:hidden p-3 bg-zinc-50 text-zinc-600 rounded-xl hover:bg-zinc-100 transition-all border border-zinc-100"
-                    >
-                        <Info size={20} />
-                    </button>
-                </header>
-
-                <div className="flex-1 overflow-y-auto px-6 md:px-10 py-6 custom-scrollbar scroll-smooth">
-                    {/* Active Path Breadcrumbs or Title */}
-                    <div className="flex items-center gap-2 mb-8">
-                        <button
-                            onClick={() => { setActiveTab("dashboard"); fetchData(""); }}
-                            className="text-zinc-400 hover:text-blue-600 font-bold transition-all"
-                        >
-                            Início
-                        </button>
-                        {currentPath.split('/').map((p, i, arr) => (
-                            p && (
-                                <div key={i} className="flex items-center gap-2">
-                                    <ChevronRight size={14} className="text-zinc-300" />
-                                    <button
-                                        onClick={() => fetchData(arr.slice(0, i + 1).join('/'))}
+                                        onClick={() => navigateTo(crumb.path)}
                                         className={cn(
-                                            "font-bold transition-all",
-                                            i === arr.length - 1 ? "text-blue-900" : "text-zinc-400 hover:text-blue-600"
+                                            "hover:text-blue-600 transition-colors",
+                                            index === getBreadcrumbs().length - 1 ? "text-gray-900 font-medium" : "text-gray-600"
                                         )}
                                     >
-                                        {p}
+                                        {crumb.name}
                                     </button>
-                                </div>
-                            )
-                        ))}
-                        {activeCategory && (
-                            <div className="flex items-center gap-2">
-                                <ChevronRight size={14} className="text-zinc-300" />
-                                <span className="font-bold text-blue-900 capitalize">{activeCategory}</span>
-                            </div>
-                        )}
-                        {activeTab === "computer" && (
-                            <div className="flex items-center gap-2">
-                                <ChevronRight size={14} className="text-zinc-300" />
-                                <span className="font-bold text-blue-900">Meu computador</span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Dashboard Overview - Only on landing */}
-                    {!currentPath && !activeCategory && activeTab === "dashboard" && (
-                        <>
-                            <SectionHeader title="Seus Discos" />
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-                                {stats?.allDisks.map(disk => (
-                                    <div
-                                        key={disk.mount}
-                                        onClick={() => fetchData(disk.mount)}
-                                        className="bg-white border border-zinc-100 p-6 rounded-[24px] hover:border-blue-200 hover:shadow-xl transition-all cursor-pointer group"
-                                    >
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className={cn(
-                                                "w-12 h-12 rounded-2xl flex items-center justify-center p-2.5 shadow-sm transition-transform group-hover:scale-110",
-                                                disk.type === 'home' ? "bg-emerald-50 text-emerald-500" : (disk.mount === '/' ? "bg-blue-50 text-blue-500" : "bg-zinc-50 text-zinc-500")
-                                            )}>
-                                                <HardDrive className="w-full h-full" />
-                                            </div>
-                                            <div className="text-[10px] font-black text-zinc-400">{disk.percent}%</div>
-                                        </div>
-                                        <p className="font-bold text-sm text-zinc-800 truncate mb-1">{disk.name}</p>
-                                        <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">{formatBytes(disk.used)} / {formatBytes(disk.size)}</p>
-                                        <div className="h-1.5 w-full bg-zinc-100 rounded-full mt-4 overflow-hidden">
-                                            <div className={cn("h-full", disk.mount === '/' ? "bg-blue-500" : "bg-zinc-400")} style={{ width: `${disk.percent}%` }} />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <SectionHeader title="Categorias" />
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 mb-10">
-                                {getTypeStats.map(stat => (
-                                    <div
-                                        key={stat.id}
-                                        onClick={() => fetchData("", stat.id)}
-                                        className="bg-white border border-zinc-100 p-4 rounded-2xl hover:shadow-lg hover:shadow-black/5 transition-all cursor-pointer group"
-                                    >
-                                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-110", stat.bg, stat.color)}>
-                                            {stat.icon}
-                                        </div>
-                                        <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-tighter">{stat.count}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </>
-                    )}
-
-                    {/* "My Computer" - Real Disks View */}
-                    {activeTab === "computer" && stats?.allDisks && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-                            {stats.allDisks.map(disk => (
-                                <div
-                                    key={disk.mount}
-                                    onClick={() => {
-                                        fetchData(disk.mount);
-                                        setActiveTab("dashboard");
-                                    }}
-                                    className="bg-white border border-zinc-100 p-6 rounded-[24px] hover:border-blue-200 hover:shadow-xl transition-all cursor-pointer group"
-                                >
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className={cn(
-                                            "w-12 h-12 rounded-2xl flex items-center justify-center p-2.5 shadow-sm",
-                                            disk.mount === '/' ? "bg-blue-50 text-blue-500" : "bg-zinc-50 text-zinc-500"
-                                        )}>
-                                            <HardDrive className="w-full h-full" />
-                                        </div>
-                                        <div className="text-[10px] font-black text-zinc-400">{disk.percent}%</div>
-                                    </div>
-                                    <p className="font-bold text-sm text-zinc-800 truncate mb-1">{disk.mount === '/' ? 'Disco Local' : disk.name}</p>
-                                    <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">{formatBytes(disk.used)} / {formatBytes(disk.size)}</p>
-                                    <div className="h-1.5 w-full bg-zinc-100 rounded-full mt-4 overflow-hidden">
-                                        <div className={cn("h-full", disk.mount === '/' ? "bg-blue-500" : "bg-zinc-400")} style={{ width: `${disk.percent}%` }} />
-                                    </div>
                                 </div>
                             ))}
                         </div>
-                    )}
 
-                    {/* Folders Section - HIDE when in categories or computer view */}
-                    {!activeCategory && activeTab !== "computer" && (
-                        <>
-                            <SectionHeader title="Pastas" showViewAll />
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-                                {filteredFolders.length > 0 ? filteredFolders.map(folder => (
-                                    <div
-                                        key={folder.path}
-                                        onClick={() => { fetchData(folder.path); }}
-                                        className="bg-white border border-zinc-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/5 p-6 rounded-[24px] group transition-all cursor-pointer relative"
-                                    >
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center p-2.5 shadow-md shadow-blue-500/10 transition-all group-hover:shadow-blue-500/20">
-                                                {getFileIcon(folder)}
-                                            </div>
-                                            <div className="flex flex-col items-end gap-1">
-                                                <button className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors font-bold text-zinc-400">
-                                                    <MoreVertical size={16} />
-                                                </button>
-                                                {folder.diskLabel && (
-                                                    <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-blue-600 text-white rounded-full tracking-tighter shadow-sm">
-                                                        {folder.diskLabel}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p className="font-extrabold text-sm text-zinc-900 dark:text-zinc-100 truncate mb-1">{folder.name}</p>
-                                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-black uppercase tracking-widest leading-none">{formatBytes(folder.size)}</p>
-                                        </div>
-                                    </div>
-                                )) : searchQuery && <p className="col-span-4 text-center text-zinc-400 py-10">Nenhuma pasta encontrada</p>}
+                        {/* Search */}
+                        <div className="flex items-center gap-4">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar arquivos..."
+                                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+                                />
                             </div>
-                        </>
-                    )}
-
-                    {/* Files Section */}
-                    {activeTab !== "computer" && (
-                        <>
-                            <SectionHeader
-                                title={activeCategory ? activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1) : "Arquivos"}
-                                showViewAll
-                            />
-                            <div className="space-y-1 pb-10">
-                                <div className="grid grid-cols-12 px-4 py-3 text-[10px] font-bold text-zinc-300 uppercase tracking-widest mb-2 border-b border-zinc-50">
-                                    <div className="col-span-4">Nome</div>
-                                    <div className="col-span-2">Tamanho</div>
-                                    <div className="col-span-3 text-center">Modificado em</div>
-                                    <div className="col-span-2 text-center">Membros</div>
-                                    <div className="col-span-1 text-right"></div>
-                                </div>
-                                {filteredFiles.length > 0 ? filteredFiles.map(file => (
-                                    <div
-                                        key={file.path}
-                                        onClick={() => setPreviewFile(file)}
-                                        className="grid grid-cols-6 sm:grid-cols-12 px-4 py-4 items-center hover:bg-blue-50/20 rounded-2xl transition-all group cursor-pointer"
-                                    >
-                                        <div className="col-span-4 sm:col-span-4 flex items-center gap-4 pr-4">
-                                            <div className="w-10 h-10 flex items-center justify-center bg-zinc-50 group-hover:bg-blue-50 rounded-xl shrink-0 transition-colors overflow-hidden">
-                                                {getFileIcon(file)}
-                                            </div>
-                                            <span className="text-sm font-bold truncate text-zinc-700">{file.name}</span>
-                                        </div>
-                                        <div className="hidden sm:block col-span-2 text-xs font-bold text-zinc-400">{formatBytes(file.size)}</div>
-                                        <div className="hidden md:block col-span-3 text-xs font-semibold text-zinc-400 text-center">{new Date(file.modifiedAt).toLocaleDateString()}</div>
-                                        <div className="hidden lg:flex col-span-2 justify-center -space-x-2">
-                                            {[1, 2, 3].map(i => (
-                                                <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-zinc-200 overflow-hidden ring-1 ring-zinc-50">
-                                                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${file.name}${i}`} alt="Avatar" />
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="col-span-2 sm:col-span-1 flex justify-end opacity-0 group-hover:opacity-100 transition-all">
-                                            <MoreVertical size={16} className="text-zinc-300" />
-                                        </div>
-                                    </div>
-                                )) : <p className="text-center text-zinc-400 py-20">Nenhum arquivo encontrado</p>}
-                            </div>
-                        </>
-                    )}
-
-                    {activeTab === 'settings' && (
-                        <div className="max-w-4xl mx-auto space-y-12 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="flex items-center gap-4 mb-10">
-                                <div className="w-16 h-16 bg-blue-600 text-white rounded-[24px] flex items-center justify-center shadow-xl shadow-blue-500/20">
-                                    <Settings size={32} />
-                                </div>
-                                <div>
-                                    <h1 className="text-3xl font-black text-blue-900 leading-tight">Painel de Configurações</h1>
-                                    <p className="text-zinc-400 font-bold uppercase tracking-widest text-xs">Gerencie pastas raiz e usuários</p>
-                                </div>
-                            </div>
-
-                            {/* Custom Roots Manager */}
-                            <section className="bg-white border border-zinc-100 p-8 rounded-[40px] shadow-2xl shadow-black/[0.02]">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <Search className="text-blue-600" size={24} />
-                                    <h3 className="text-xl font-bold">Pastas Raízes Inteligentes</h3>
-                                </div>
-                                <p className="text-sm text-zinc-500 mb-8 leading-relaxed">
-                                    Adicione nomes de pastas que o sistema deve rastrear e unir automaticamente em todos os seus discos.
-                                    Perfeito para pastas de projetos, backups ou coleções específicas.
-                                </p>
-
-                                <div className="flex gap-4 mb-8">
-                                    <input
-                                        type="text"
-                                        value={newRoot}
-                                        onChange={(e) => setNewRoot(e.target.value)}
-                                        placeholder="Ex: PROJETOS, BACKUP, CLIENTES..."
-                                        className="flex-1 bg-zinc-50 border-none rounded-2xl px-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-100 transition-all"
-                                    />
-                                    <button
-                                        onClick={handleAddRoot}
-                                        disabled={settingsLoading}
-                                        className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-50"
-                                    >
-                                        ADICIONAR
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {customRoots.map(root => (
-                                        <div key={root} className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100 group">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm">
-                                                    <CheckCircle2 size={20} />
-                                                </div>
-                                                <span className="font-extrabold text-zinc-800">{root}</span>
-                                            </div>
-                                            <button
-                                                onClick={() => handleRemoveRoot(root)}
-                                                className="p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    ))}
-                                    {customRoots.length === 0 && <p className="col-span-2 text-center text-zinc-400 py-6 font-bold uppercase tracking-widest text-[10px]">Nenhuma pasta customizada</p>}
-                                </div>
-                            </section>
-
-                            {/* User Management Form */}
-                            <section className="bg-zinc-900 text-white p-10 rounded-[40px] shadow-2xl shadow-blue-900/10 relative overflow-hidden">
-                                <div className="relative z-10">
-                                    <div className="flex items-center gap-3 mb-6">
-                                        <UserPlus className="text-blue-400" size={24} />
-                                        <h3 className="text-xl font-bold">Gerenciar Acesso (Usuários)</h3>
-                                    </div>
-                                    <p className="text-sm text-zinc-400 mb-8 leading-relaxed max-w-lg">
-                                        Crie novas contas de acesso para sua nuvem local. O usuário será criado no Firebase e terá acesso a todos os arquivos sincronizados.
-                                    </p>
-
-                                    <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <input
-                                            required
-                                            type="text"
-                                            placeholder="Nome Completo"
-                                            value={newUser.displayName}
-                                            onChange={(e) => setNewUser({ ...newUser, displayName: e.target.value })}
-                                            className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-500/50 transition-all text-white"
-                                        />
-                                        <input
-                                            required
-                                            type="email"
-                                            placeholder="E-mail"
-                                            value={newUser.email}
-                                            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                                            className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-500/50 transition-all text-white"
-                                        />
-                                        <input
-                                            required
-                                            type="password"
-                                            placeholder="Senha"
-                                            value={newUser.password}
-                                            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                                            className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-500/50 transition-all text-white"
-                                        />
-                                        <button
-                                            type="submit"
-                                            disabled={settingsLoading}
-                                            className="bg-white text-zinc-900 rounded-2xl font-black text-sm hover:bg-zinc-100 transition-all shadow-xl active:scale-95 disabled:opacity-50"
-                                        >
-                                            {settingsLoading ? 'CRIANDO...' : 'CRIAR E AUTORIZAR'}
-                                        </button>
-                                    </form>
-                                </div>
-                                <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl" />
-                            </section>
-                        </div>
-                    )}
-                </div>
-            </main >
-
-            {/* 3. Sidebar Right (Storage & Disks) - Responsive */}
-            < aside className={
-                cn(
-                    "fixed inset-y-0 right-0 w-80 bg-[#FDFEFE] border-l border-zinc-100 flex flex-col z-50 px-8 py-10 transition-transform duration-300 xl:relative xl:translate-x-0",
-                    showRightPanel ? "translate-x-0 overflow-y-auto" : "translate-x-full"
-                )
-            } >
-                <div className="flex items-center justify-between mb-10">
-                    <button onClick={() => setShowRightPanel(false)} className="xl:hidden p-2 text-zinc-400 hover:bg-zinc-100 rounded-xl">
-                        <X size={20} />
-                    </button>
-                    <div className="flex items-center gap-4 ml-auto">
-                        <HeaderButton icon={<Bell size={20} />} />
-                        <div className="w-10 h-10 rounded-full border-2 border-white shadow-xl shadow-zinc-200 overflow-hidden ring-4 ring-blue-50">
-                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Ricardo" alt="User" />
                         </div>
                     </div>
-                </div>
+                </header>
 
-                <h2 className="font-bold text-xl mb-8 text-zinc-800">Sua Nuvem</h2>
-
-                {/* Multi-Disk Storage Summary */}
-                {
-                    stats && (
-                        <div className="space-y-10 flex-1 overflow-y-auto custom-scrollbar pr-1">
-                            {/* Active Disk Arc Visual */}
-                            <div className="relative h-48 flex items-center justify-center">
-                                <svg className="w-full h-full transform -rotate-90">
-                                    <circle
-                                        cx="50%" cy="50%" r="65"
-                                        className="fill-none stroke-zinc-100"
-                                        strokeWidth="12"
-                                    />
-                                    <circle
-                                        cx="50%" cy="50%" r="65"
-                                        className="fill-none stroke-blue-600"
-                                        strokeWidth="12"
-                                        strokeDasharray={`${(stats.percent / 100) * 408} 408`}
-                                        strokeLinecap="round"
-                                    />
-                                </svg>
-                                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <p className="text-2xl font-black text-blue-900 leading-tight">{formatBytes(stats.used)}</p>
-                                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Usados de {formatBytes(stats.total)}</p>
-                                </div>
-                            </div>
-
-                            {/* Categories List (Matching Reference Image) */}
-                            <div className="space-y-5">
-                                {getTypeStats.map(stat => (
-                                    <div key={stat.id} className="flex items-center justify-between group cursor-pointer hover:bg-zinc-50 p-2 rounded-2xl transition-all -mx-2">
-                                        <div className="flex items-center gap-3">
-                                            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shadow-sm", stat.bg, stat.color)}>
-                                                {stat.icon}
-                                            </div>
-                                            <div>
-                                                <p className="text-[11px] font-bold text-zinc-800">{stat.label}</p>
-                                                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-tighter">{stat.count}</p>
-                                            </div>
-                                        </div>
-                                        <p className="text-[11px] font-black text-zinc-800">{stat.size}</p>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* All Disks Recognition List */}
-                            <div className="space-y-6">
-                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">Discos Conectados</p>
-                                {stats.allDisks.map(disk => (
-                                    <div key={disk.mount} className="flex items-center gap-4 group cursor-pointer">
-                                        <div className={cn(
-                                            "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all group-hover:scale-110",
-                                            disk.mount === '/' ? "bg-blue-50 text-blue-500 shadow-blue-100 ring-2 ring-blue-100" : "bg-zinc-50 text-zinc-500"
-                                        )}>
-                                            <HardDrive size={18} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <p className="text-[11px] font-bold truncate">{disk.mount === '/' ? 'Disco Principal' : disk.name}</p>
-                                                <p className="text-[11px] font-black text-zinc-800">{disk.percent}%</p>
-                                            </div>
-                                            <div className="h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden">
-                                                <motion.div
-                                                    initial={{ width: 0 }}
-                                                    animate={{ width: `${disk.percent}%` }}
-                                                    className={cn("h-full", disk.mount === '/' ? "bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.3)]" : "bg-zinc-400")}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Import/Upload Area in Right Sidebar */}
-                            <div className="bg-white border-2 border-dashed border-zinc-100 rounded-[32px] p-6 text-center hover:border-blue-200 hover:bg-blue-50/10 transition-all cursor-pointer group mt-auto">
-                                <div className="w-10 h-10 bg-zinc-50 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                                    <Upload size={18} className="text-zinc-400 group-hover:text-blue-600" />
-                                </div>
-                                <p className="text-[11px] font-bold text-zinc-700">Importar Arquivos</p>
-                            </div>
+                {/* Content Area */}
+                <div className="flex-1 overflow-y-auto p-6">
+                    {loading ? (
+                        <div className="flex items-center justify-center h-64">
+                            <div className="text-gray-500">Carregando...</div>
                         </div>
-                    )
-                }
-            </aside >
-
-            {/* Media Player Modal */}
-            <AnimatePresence>
-                {
-                    previewFile && (
-                        <MediaPlayer
-                            file={previewFile}
-                            onClose={() => setPreviewFile(null)}
-                            apiUrl={process.env.NEXT_PUBLIC_API_URL || "https://cadillac-editions-transaction-plymouth.trycloudflare.com/api/cloud"}
-                        />
-                    )
-                }
-            </AnimatePresence >
-
-            {/* Upload Destination Modal */}
-            <AnimatePresence>
-                {
-                    isSelectingDestination && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-                        >
-                            <motion.div
-                                initial={{ scale: 0.9, y: 20 }}
-                                animate={{ scale: 1, y: 0 }}
-                                exit={{ scale: 0.9, y: 20 }}
-                                className="bg-white dark:bg-[#15181C] w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 p-8"
-                            >
-                                <h3 className="text-xl font-bold mb-2">Escolha o Destino</h3>
-                                <p className="text-sm text-zinc-500 mb-6">Em qual disco ou pasta você deseja salvar ({uploadingFiles.length} arquivos)?</p>
-
-                                <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-                                    <button
-                                        onClick={() => {
-                                            const dt = new DataTransfer();
-                                            uploadingFiles.forEach(f => dt.items.add(f));
-                                            handleFileUpload(dt.files, currentPath);
-                                            setIsSelectingDestination(false);
-                                        }}
-                                        className="w-full flex items-center gap-4 p-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all border border-zinc-100 dark:border-zinc-800 group"
-                                    >
-                                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/40 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <Folder className="w-5 h-5" />
-                                        </div>
-                                        <div className="text-left">
-                                            <p className="font-bold text-sm">Pasta Atual</p>
-                                            <p className="text-[10px] text-zinc-400 truncate max-w-[200px]">{currentPath || 'Raiz'}</p>
-                                        </div>
-                                    </button>
-
-                                    {stats?.allDisks.map((disk) => (
-                                        <div key={disk.mount} className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
-                                            <div className="flex items-center gap-3 mb-2">
-                                                <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-800 text-zinc-500 rounded-lg flex items-center justify-center">
-                                                    <HardDrive size={16} />
+                    ) : (
+                        <>
+                            {/* Show disks on home view */}
+                            {activeView === "home" && currentPath === "" && disks.length > 0 && (
+                                <div className="mb-8">
+                                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Meus Discos</h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                        {disks.map(disk => (
+                                            <div
+                                                key={disk.mount}
+                                                onClick={() => navigateTo(disk.mount)}
+                                                className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer"
+                                            >
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                                        <HardDrive className="w-6 h-6 text-blue-600" />
+                                                    </div>
+                                                    <span className="text-xs font-medium text-gray-500">{disk.percent}%</span>
                                                 </div>
-                                                <div>
-                                                    <p className="font-bold text-xs">{disk.name}</p>
-                                                    <p className="text-[10px] text-zinc-400">{formatBytes(disk.used)} de {formatBytes(disk.size)}</p>
+                                                <h3 className="font-medium text-gray-900 mb-1">{disk.name}</h3>
+                                                <p className="text-xs text-gray-500">{formatBytes(disk.used)} / {formatBytes(disk.size)}</p>
+                                                <div className="mt-3 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-blue-600" style={{ width: `${disk.percent}%` }}></div>
                                                 </div>
                                             </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <button
-                                                    onClick={() => {
-                                                        const dt = new DataTransfer();
-                                                        uploadingFiles.forEach(f => dt.items.add(f));
-                                                        handleFileUpload(dt.files, disk.mount);
-                                                        setIsSelectingDestination(false);
-                                                    }}
-                                                    className="py-3 bg-gradient-to-r from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-xl text-[10px] font-black hover:from-white hover:to-white transition-all text-zinc-800 dark:text-zinc-100 shadow-sm"
-                                                >
-                                                    RAIZ DO DISCO
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        const dt = new DataTransfer();
-                                                        uploadingFiles.forEach(f => dt.items.add(f));
-                                                        handleFileUpload(dt.files, `${disk.mount}/UPLOAD CLOUD`);
-                                                        setIsSelectingDestination(false);
-                                                    }}
-                                                    className="py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-[10px] font-black hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/20"
-                                                >
-                                                    UPLOAD CLOUD (AUTO)
-                                                </button>
+                            {/* Files and Folders Grid */}
+                            {files.length > 0 ? (
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                                        {activeView === "recent" && "Arquivos Recentes"}
+                                        {activeView === "favorites" && "Favoritos"}
+                                        {activeView === "trash" && "Lixeira"}
+                                        {activeView === "home" && currentPath && "Conteúdo"}
+                                        {activeView === "home" && !currentPath && files.length > 0 && "Pastas Rápidas"}
+                                    </h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                        {files.map(file => (
+                                            <div
+                                                key={file.path}
+                                                onClick={() => file.isDirectory && navigateTo(file.path)}
+                                                className={cn(
+                                                    "bg-white border border-gray-200 rounded-lg p-4 transition-all",
+                                                    file.isDirectory ? "hover:shadow-lg hover:border-blue-300 cursor-pointer" : "hover:shadow-md"
+                                                )}
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex-shrink-0">
+                                                        {getFileIcon(file)}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-medium text-gray-900 truncate">{file.name}</h3>
+                                                        <p className="text-xs text-gray-500 mt-1">
+                                                            {formatBytes(file.size)} • {new Date(file.modifiedAt).toLocaleDateString()}
+                                                        </p>
+                                                    </div>
+                                                    <button className="flex-shrink-0 p-1 hover:bg-gray-100 rounded">
+                                                        <MoreVertical size={16} className="text-gray-400" />
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
-
-                                <div className="mt-8 flex gap-3">
-                                    <button
-                                        onClick={() => setIsSelectingDestination(false)}
-                                        className="flex-1 py-3 text-sm font-bold text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all"
-                                    >
-                                        Cancelar
-                                    </button>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+                                    <Folder size={48} className="mb-4 text-gray-300" />
+                                    <p>Nenhum arquivo encontrado</p>
                                 </div>
-                            </motion.div>
-                        </motion.div>
-                    )
-                }
-            </AnimatePresence >
-
-            {/* Upload Progress Overlay */}
-            <AnimatePresence>
-                {
-                    loading && uploadProgress > 0 && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[110] bg-blue-600/90 backdrop-blur-md flex flex-col items-center justify-center text-white"
-                        >
-                            <div className="relative w-32 h-32 mb-8">
-                                <motion.div
-                                    animate={{ rotate: 360 }}
-                                    transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                                    className="absolute inset-0 border-4 border-white/20 border-t-white rounded-full"
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center text-2xl font-black">
-                                    {uploadProgress}%
-                                </div>
-                            </div>
-                            <h2 className="text-2xl font-black mb-2 animate-bounce text-center px-4">Subindo Arquivos...</h2>
-                            <p className="text-blue-100/60 text-sm font-bold tracking-widest uppercase">Aguarde a finalização</p>
-                        </motion.div>
-                    )
-                }
-            </AnimatePresence >
-
-            {/* Upload Summary Modal */}
-            <AnimatePresence>
-                {
-                    uploadSummary && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-                        >
-                            <motion.div
-                                initial={{ scale: 0.9, y: 20 }}
-                                animate={{ scale: 1, y: 0 }}
-                                exit={{ scale: 0.9, y: 20 }}
-                                className="bg-white dark:bg-[#15181C] w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 p-8"
-                            >
-                                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 rounded-[24px] flex items-center justify-center mx-auto mb-6">
-                                    <CheckCircle2 size={32} />
-                                </div>
-                                <h3 className="text-xl font-bold text-center mb-2">Upload concluído!</h3>
-                                <p className="text-sm text-zinc-500 text-center mb-8">{uploadSummary.length} arquivos enviados com sucesso.</p>
-
-                                <div className="space-y-2 mb-8 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
-                                    {uploadSummary.map((name, i) => (
-                                        <div key={i} className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-300">
-                                            <div className="w-6 h-6 shrink-0">
-                                                {getFileIcon({ name, isDirectory: false, path: '' } as any)}
-                                            </div>
-                                            <span className="truncate">{name}</span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <button
-                                    onClick={() => setUploadSummary(null)}
-                                    className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-[20px] font-black transition-all hover:scale-[1.02] active:scale-95 shadow-xl shadow-black/10"
-                                >
-                                    Entendido
-                                </button>
-                            </motion.div>
-                        </motion.div>
-                    )
-                }
-            </AnimatePresence >
-
-            <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&display=swap');
-        body { font-family: 'Outfit', sans-serif; }
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #E4E4E7; border-radius: 10px; }
-      `}</style>
-        </div >
-    );
-}
-
-function SidebarItem({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void }) {
-    return (
-        <div
-            onClick={onClick}
-            className={cn(
-                "flex items-center gap-4 px-5 py-3.5 rounded-2xl text-[13px] font-bold transition-all cursor-pointer group",
-                active
-                    ? "bg-blue-600 text-white shadow-xl shadow-blue-500/20"
-                    : "text-zinc-400 hover:text-zinc-900 border border-transparent hover:border-zinc-50"
-            )}
-        >
-            <span className={cn(active ? "text-white" : "text-zinc-300 group-hover:text-zinc-600")}>
-                {icon}
-            </span>
-            {label}
+                            )}
+                        </>
+                    )}
+                </div>
+            </main>
         </div>
-    );
-}
-
-function SectionHeader({ title, showViewAll }: { title: string, showViewAll?: boolean }) {
-    return (
-        <div className="flex items-center justify-between mb-8 px-1">
-            <h2 className="font-bold text-xl text-zinc-800">{title}</h2>
-            {showViewAll && <button className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline">Ver Todos</button>}
-        </div>
-    )
-}
-
-function HeaderButton({ icon }: { icon: React.ReactNode }) {
-    return (
-        <button className="p-3 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600 rounded-xl transition-all active:scale-95 border border-transparent hover:border-blue-50 flex items-center justify-center">
-            {icon}
-        </button>
     );
 }

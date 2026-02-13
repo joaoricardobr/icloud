@@ -1,15 +1,27 @@
+import { Router } from 'express';
 import { getFiles, uploadFile, downloadFile, deleteFile, createFolder, getThumbnail } from '../controllers/deviceController';
-import { getSettings, updateSettings, createUser } from '../controllers/settingsController';
+import { getSettings, updateSettings, createUser, toggleFavorite } from '../controllers/settingsController';
 import { verifyToken, verifyAdmin } from '../middleware/authMiddleware';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
 
 const router = Router();
 
 // Multer Setup
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const dest = req.body.path || '/mnt/storage_pool';
+        let dest = req.body.path || '';
+
+        // If path is empty (root), save in /home/user/Transferências/Uploads Online
+        if (!dest || dest === '/' || dest === '') {
+            dest = path.join(os.homedir(), 'Transferências', 'Uploads Online');
+        }
+
+        if (!fs.existsSync(dest)) {
+            fs.mkdirSync(dest, { recursive: true });
+        }
         cb(null, dest);
     },
     filename: (req, file, cb) => {
@@ -37,5 +49,6 @@ router.delete('/delete', deleteFile);
 router.get('/settings', getSettings);
 router.post('/settings', updateSettings);
 router.post('/users', createUser);
+router.post('/favorite', toggleFavorite);
 
 export default router;
