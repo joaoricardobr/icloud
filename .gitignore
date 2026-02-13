@@ -1,13 +1,9 @@
-node_modules
-.next
-dist
-.env
+# Arquivos de ambiente local (não versionar)
 .env.local
-.DS_Store
+.env*.local
+
+# Logs de desenvolvimento
+backend.log
+frontend.log
+frontend-new.log
 *.log
-pm2.pid
-.pm2
-storage_pool
-/mnt/storage_pool
-build
-out
