@@ -19,28 +19,23 @@ log() {
 # Aguardar 10 segundos após boot para garantir que tudo está pronto
 sleep 10
 
-log "🚀 Iniciando CloudDesk automaticamente..." | tee -a "$BACKEND_LOG" "$FRONTEND_LOG"
+log "🚀 Iniciando CloudDesk via PM2..." | tee -a "$BACKEND_LOG" "$FRONTEND_LOG"
 
-# Verificar se já está rodando
-if lsof -Pi :3001 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    log "⚠️  Backend já está rodando na porta 3001" | tee -a "$BACKEND_LOG"
+# Usar PM2 para gerenciar os processos e garantir que fiquem sempre ativos
+if command -v pm2 &> /dev/null; then
+    cd "$PROJECT_DIR"
+    pm2 start ecosystem.config.js
+    pm2 save
+    log "✅ Processos iniciados e salvos no PM2" | tee -a "$BACKEND_LOG"
 else
-    log "▶️  Iniciando backend..." | tee -a "$BACKEND_LOG"
-    cd "$PROJECT_DIR/backend" && npm run dev >> "$BACKEND_LOG" 2>&1 &
-    sleep 3
-    log "✅ Backend iniciado" | tee -a "$BACKEND_LOG"
+    log "❌ PM2 não encontrado. Instalando..." | tee -a "$BACKEND_LOG"
+    npm install -g pm2
+    cd "$PROJECT_DIR"
+    pm2 start ecosystem.config.js
+    pm2 save
 fi
 
-if lsof -Pi :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    log "⚠️  Frontend já está rodando na porta 3000" | tee -a "$FRONTEND_LOG"
-else
-    log "▶️  Iniciando frontend..." | tee -a "$FRONTEND_LOG"
-    cd "$PROJECT_DIR/web" && npm run dev >> "$FRONTEND_LOG" 2>&1 &
-    sleep 5
-    log "✅ Frontend iniciado" | tee -a "$FRONTEND_LOG"
-fi
-
-log "🎉 CloudDesk está pronto!" | tee -a "$BACKEND_LOG" "$FRONTEND_LOG"
+log "🎉 CloudDesk está configurado para manter-se sempre ativo!" | tee -a "$BACKEND_LOG" "$FRONTEND_LOG"
 log "📍 Acesse: http://localhost:3000" | tee -a "$BACKEND_LOG" "$FRONTEND_LOG"
 
 # Notificação desktop (opcional)

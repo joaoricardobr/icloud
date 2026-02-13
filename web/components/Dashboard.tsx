@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
-import api from "@/lib/api";
+import api, { refreshApiConfig } from "@/lib/api";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import DiskCard from "./DiskCard";
@@ -63,6 +63,7 @@ export default function Dashboard() {
     const [searchQuery, setSearchQuery] = useState("");
     const [filterType, setFilterType] = useState<string>("all");
     const [sortBy, setSortBy] = useState<string>("name");
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
@@ -119,6 +120,18 @@ export default function Dashboard() {
             }
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            await refreshApiConfig();
+            await fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
+        } catch (err) {
+            console.error("Refresh failed:", err);
+            setIsRefreshing(false);
         }
     };
 
@@ -465,6 +478,28 @@ export default function Dashboard() {
     // Initial load
     useEffect(() => {
         fetchData();
+
+        // Automatic refresh every 5 minutes if window is focused
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                console.log("🔄 Auto-refreshing connectivity...");
+                handleRefresh();
+            }
+        }, 5 * 60 * 1000);
+
+        // Also refresh when tab becomes visible again
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                handleRefresh();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, []);
 
     return (
@@ -498,6 +533,8 @@ export default function Dashboard() {
                     onDownloadZip={handleDownloadZip}
                     onShareSelected={() => handleShare()}
                     isAllSelected={selectedPaths.length > 0 && selectedPaths.length === filteredFiles.length}
+                    onRefresh={handleRefresh}
+                    isRefreshing={isRefreshing}
                 />
 
                 {/* Content Area */}

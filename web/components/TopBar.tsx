@@ -14,7 +14,8 @@ import {
     Clock,
     Star,
     Share2,
-    Archive
+    Archive,
+    RefreshCw
 } from "lucide-react";
 import { slideInFromTop } from "@/lib/animations";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,8 @@ interface TopBarProps {
     onDownloadZip?: () => void;
     onShareSelected?: () => void;
     isAllSelected?: boolean;
+    onRefresh?: () => void;
+    isRefreshing?: boolean;
 }
 
 export default function TopBar({
@@ -64,7 +67,9 @@ export default function TopBar({
     onSelectAll,
     onDownloadZip,
     onShareSelected,
-    isAllSelected = false
+    isAllSelected = false,
+    onRefresh,
+    isRefreshing = false
 }: TopBarProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showFilters, setShowFilters] = useState(false);
@@ -147,6 +152,22 @@ export default function TopBar({
                             className="bg-slate-100 border-none rounded-2xl py-2 pl-10 pr-4 text-sm focus:ring-4 focus:ring-blue-500/10 focus:bg-white w-full md:w-64 transition-all outline-none font-medium text-slate-700"
                         />
                     </div>
+
+                    {/* Refresh Button */}
+                    {onRefresh && (
+                        <motion.button
+                            onClick={onRefresh}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            className={cn(
+                                "p-2.5 rounded-2xl border transition-all flex items-center justify-center",
+                                isRefreshing ? "bg-blue-50 border-blue-200 text-blue-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                            )}
+                            title="Atualizar conexão e arquivos"
+                        >
+                            <RefreshCw size={18} className={cn(isRefreshing && "animate-spin")} />
+                        </motion.button>
+                    )}
 
                     {/* Advanced Filters Trigger */}
                     <div className="relative">
