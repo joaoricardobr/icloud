@@ -4,15 +4,29 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // Configurações de API: Qualquer usuário autenticado pode ler a URL do túnel.
-    // O backend (Admin SDK) tem permissão total para gravar.
     match /settings/api_config {
       allow read: if request.auth != null;
     }
     
-    // Regras gerais para outras coleções (ex: arquivos, usuários, etc.)
-    // Garanta que o usuário só acesse seus próprios dados se houver essa lógica.
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // Regra: Apenas usuários autenticados podem ler/escrever SEUS PRÓPRIOS dados.
+    match /projects/{document} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    match /snippets/{document} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    match /links/{document} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    match /backups/{document} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
   }
 }
