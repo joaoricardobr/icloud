@@ -272,8 +272,8 @@ export const getFiles = async (req: Request, res: Response) => {
                 }
             }
         }
-        // HOME VIEW: Show real disks + Uploads Online folder
-        else if (queryPath === '' || queryPath === '/') {
+        // HOME VIEW: Show real disks + Uploads Online folder (only on empty path)
+        else if (queryPath === '') {
             // Get category statistics for dashboard
             categoryStats = await getCategoryStats(relevantDisks);
 
