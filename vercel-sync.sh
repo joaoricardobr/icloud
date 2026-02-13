@@ -10,25 +10,29 @@ API_FILE="$PROJECT_ROOT/web/lib/api.ts"
 echo "🧹 Limpando processos antigos..."
 pm2 delete clouddesk-tunnel 2>/dev/null
 
-echo "🔍 Iniciando novo túnel Cloudflare e extraindo URL..."
-# Inicia cloudflared, captura a primeira linha que contém o URL e encerra.
-TUNNEL_URL=$(./cloudflared tunnel --url http://localhost:3001 --protocol http2 2>&1 | grep -m 1 "https://.*\.trycloudflare\.com" | grep -o "https://.*\.trycloudflare\.com")
+echo "🔍 Iniciando túnel Cloudflare no PM2..."
+pm2 start "./cloudflared tunnel --url http://localhost:3001 --protocol http2" --name clouddesk-tunnel --log tunnel.log
+
+echo "⏳ Aguardando URL do túnel ser gerada..."
+sleep 5
+
+# Extrai a URL diretamente do log do túnel que acabou de ser iniciado
+TUNNEL_URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" tunnel.log | tail -n 1)
 
 if [ -z "$TUNNEL_URL" ]; then
-    echo "❌ Erro: Não foi possível obter o URL do túnel."
+    echo "❌ Erro: Não foi possível obter o URL do túnel após 5 segundos."
+    echo "DICA: Verifique 'pm2 logs clouddesk-tunnel' para ver o erro."
     exit 1
 fi
 
-echo "✅ Novo Túnel: $TUNNEL_URL"
-
-# Reinicia no PM2 para manter rodando em background
-echo "🔋 Mantendo túnel ativo no PM2..."
-pm2 start "./cloudflared tunnel --url http://localhost:3001 --protocol http2" --name clouddesk-tunnel
+echo "✅ Túnel Ativo: $TUNNEL_URL"
 
 echo "📝 Atualizando $API_FILE..."
 # Escapa a URL para o sed
 ESCAPED_URL=$(echo "$TUNNEL_URL/api/cloud" | sed 's/\//\\\//g')
-sed -i "s/baseURL: \".*\"/baseURL: \"$ESCAPED_URL\"/" "$API_FILE"
+# Atualiza tanto DEFAULT_API_URL quanto baseURL literal se existirem
+sed -i "s|DEFAULT_API_URL = \".*\"|DEFAULT_API_URL = \"$ESCAPED_URL\"|" "$API_FILE"
+sed -i "s|baseURL: \".*\"|baseURL: \"$ESCAPED_URL\"|" "$API_FILE"
 
 echo "🔥 Atualizando Firestore com a nova URL..."
 cd "$PROJECT_ROOT/backend"
