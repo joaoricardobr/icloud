@@ -3,7 +3,7 @@ import { auth, db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 // Cache Buster: 2026-02-13T12:58:00Z - Dynamic API Discovery
-const DEFAULT_API_URL = "https://footage-mall-functions-combat.trycloudflare.com/api/cloud";
+const DEFAULT_API_URL = "https://exercise-sisters-render-strength.trycloudflare.com/api/cloud";
 
 const api = axios.create({
     baseURL: DEFAULT_API_URL,
@@ -14,6 +14,13 @@ const api = axios.create({
 
 // Dynamic BaseURL Discovery
 const updateBaseURL = async (retryCount = 0) => {
+    // Priority 1: If we are on localhost, try the local backend first
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+        api.defaults.baseURL = "http://localhost:3001/api/cloud";
+        console.log("🏠 Localhost detectado. Usando backend local:", api.defaults.baseURL);
+        return;
+    }
+
     try {
         console.log("🔍 Tentando carregar URL dinâmica do Firestore (tentativa " + (retryCount + 1) + ")...");
         const configDoc = await getDoc(doc(db, "settings", "api_config"));
@@ -22,7 +29,7 @@ const updateBaseURL = async (retryCount = 0) => {
             const data = configDoc.data();
             if (data.baseUrl) {
                 api.defaults.baseURL = data.baseUrl;
-                console.log("✅ CloudDesk API URL dinâmica carregada:", api.defaults.baseURL);
+                console.log("✅ CloudDesk API URL dinâmica carregada do Firestore:", api.defaults.baseURL);
                 return;
             }
         } else {
@@ -36,7 +43,7 @@ const updateBaseURL = async (retryCount = 0) => {
             return;
         }
     }
-    console.warn("⚠️ Usando URL padrão:", api.defaults.baseURL);
+    console.warn("⚠️ Usando URL padrão (fallback):", api.defaults.baseURL);
 };
 
 // Export discovery for external triggering
