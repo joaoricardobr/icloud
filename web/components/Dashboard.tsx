@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { HardDrive, Folder, FileText, Image as ImageIcon, Video, Music, File, Clock, Star, Trash2, Settings, LogOut, ChevronRight, Home, Search, Plus, Upload, MoreVertical } from "lucide-react";
-import { cn, formatBytes } from "@/lib/utils";
-import api from "@/lib/api";
+import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
+import api from "@/lib/api";
+import Sidebar from "./Sidebar";
+import TopBar from "./TopBar";
+import DiskCard from "./DiskCard";
+import CategoryCard from "./CategoryCard";
+import FileGrid from "./FileGrid";
+import { pageTransition, staggerContainer } from "@/lib/animations";
 
 interface FileItem {
     name: string;
@@ -14,6 +19,7 @@ interface FileItem {
     isDirectory: boolean;
     modifiedAt: string;
     diskLabel?: string;
+    category?: string;
 }
 
 interface Disk {
@@ -22,32 +28,51 @@ interface Disk {
     size: number;
     used: number;
     percent: number;
+    type?: "system" | "external";
+}
+
+interface CategoryStats {
+    imagens: { count: number; size: number; files: FileItem[] };
+    videos: { count: number; size: number; files: FileItem[] };
+    musicas: { count: number; size: number; files: FileItem[] };
+    documentos: { count: number; size: number; files: FileItem[] };
 }
 
 export default function Dashboard() {
     const [currentPath, setCurrentPath] = useState("");
     const [files, setFiles] = useState<FileItem[]>([]);
     const [disks, setDisks] = useState<Disk[]>([]);
+    const [categoryStats, setCategoryStats] = useState<CategoryStats | null>(null);
     const [loading, setLoading] = useState(true);
-    const [activeView, setActiveView] = useState<"home" | "recent" | "favorites" | "trash">("home");
+    const [activeView, setActiveView] = useState<"home" | "recent" | "favorites" | "trash" | "category">("home");
+    const [activeCategory, setActiveCategory] = useState<string>("");
 
     // Fetch data from backend
-    const fetchData = async (path: string = "", mode?: string) => {
+    const fetchData = async (path: string = "", mode?: string, category?: string) => {
         setLoading(true);
         try {
             const params = new URLSearchParams();
             if (mode) params.append('mode', mode);
             if (path) params.append('path', path);
+            if (category) params.append('category', category);
 
+            console.log('[Dashboard] Fetching:', `/files?${params.toString()}`);
             const response = await api.get(`/files?${params.toString()}`);
-            setFiles(response.data.files || []);
-            setDisks(response.data.stats?.allDisks || []);
+            console.log('[Dashboard] Response:', response.data);
 
-            if (!mode) {
+            const filesData = response.data.files || [];
+            const disksData = response.data.stats?.allDisks || [];
+            const categoriesData = response.data.stats?.categories || null;
+
+            setFiles(filesData);
+            setDisks(disksData);
+            setCategoryStats(categoriesData);
+
+            if (!mode && !category) {
                 setCurrentPath(path);
             }
         } catch (err) {
-            console.error("Error fetching files:", err);
+            console.error("[Dashboard] Error fetching files:", err);
         } finally {
             setLoading(false);
         }
@@ -56,40 +81,51 @@ export default function Dashboard() {
     // Navigate to a path
     const navigateTo = (path: string) => {
         setActiveView("home");
+        setActiveCategory("");
         fetchData(path);
     };
 
-    // Initial load
-    useEffect(() => {
-        fetchData();
-    }, []);
+    // Change view
+    const handleViewChange = (view: "home" | "recent" | "favorites" | "trash") => {
+        setActiveView(view);
+        setActiveCategory("");
+        if (view === "home") {
+            fetchData("");
+        } else {
+            fetchData("", view);
+        }
+    };
 
-    // Get file icon
-    const getFileIcon = (file: FileItem) => {
-        if (file.isDirectory) return <Folder className="w-6 h-6 text-blue-500" />;
+    // Change category
+    const handleCategoryChange = (category: string) => {
+        setActiveView("category");
+        setActiveCategory(category);
+        fetchData("", undefined, category);
+    };
 
-        const ext = file.name.split('.').pop()?.toLowerCase();
-        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) {
-            return <ImageIcon className="w-6 h-6 text-green-500" />;
+    // Handle file click
+    const handleFileClick = (file: FileItem) => {
+        if (file.isDirectory) {
+            navigateTo(file.path);
+        } else {
+            // TODO: Open file preview
+            console.log("Open file:", file.path);
         }
-        if (['mp4', 'mkv', 'avi', 'mov', 'webm'].includes(ext || '')) {
-            return <Video className="w-6 h-6 text-purple-500" />;
-        }
-        if (['mp3', 'wav', 'flac', 'm4a', 'ogg'].includes(ext || '')) {
-            return <Music className="w-6 h-6 text-pink-500" />;
-        }
-        if (['pdf', 'doc', 'docx', 'txt', 'xlsx'].includes(ext || '')) {
-            return <FileText className="w-6 h-6 text-red-500" />;
-        }
-        return <File className="w-6 h-6 text-gray-500" />;
     };
 
     // Generate breadcrumbs
     const getBreadcrumbs = () => {
-        if (!currentPath) return [{ name: "Home", path: "" }];
+        if (activeView === "category") {
+            return [
+                { name: "Início", path: "" },
+                { name: getCategoryDisplayName(activeCategory), path: "" }
+            ];
+        }
+
+        if (!currentPath) return [{ name: "Início", path: "" }];
 
         const parts = currentPath.split('/').filter(Boolean);
-        const breadcrumbs = [{ name: "Home", path: "" }];
+        const breadcrumbs = [{ name: "Início", path: "" }];
 
         let accumulatedPath = "";
         parts.forEach(part => {
@@ -100,197 +136,247 @@ export default function Dashboard() {
         return breadcrumbs;
     };
 
+    const getCategoryDisplayName = (cat: string) => {
+        const names: Record<string, string> = {
+            imagens: "Imagens",
+            videos: "Vídeos",
+            musicas: "Músicas",
+            documentos: "Documentos"
+        };
+        return names[cat] || cat;
+    };
+
     const handleLogout = async () => {
         await signOut(auth);
         window.location.href = "/";
     };
 
+    // Initial load
+    useEffect(() => {
+        fetchData();
+    }, []);
+
     return (
-        <div className="flex h-screen bg-gray-50">
+        <div className="flex h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50">
             {/* Sidebar */}
-            <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
-                <div className="p-6">
-                    <h1 className="text-2xl font-bold text-gray-900">CloudDesk</h1>
-                </div>
-
-                <nav className="flex-1 px-3">
-                    <button
-                        onClick={() => { setActiveView("home"); fetchData(""); }}
-                        className={cn(
-                            "w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors",
-                            activeView === "home" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
-                        )}
-                    >
-                        <Home size={20} />
-                        <span className="font-medium">Início</span>
-                    </button>
-
-                    <button
-                        onClick={() => { setActiveView("recent"); fetchData("", "recent"); }}
-                        className={cn(
-                            "w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors",
-                            activeView === "recent" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
-                        )}
-                    >
-                        <Clock size={20} />
-                        <span className="font-medium">Recentes</span>
-                    </button>
-
-                    <button
-                        onClick={() => { setActiveView("favorites"); fetchData("", "favorites"); }}
-                        className={cn(
-                            "w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors",
-                            activeView === "favorites" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
-                        )}
-                    >
-                        <Star size={20} />
-                        <span className="font-medium">Favoritos</span>
-                    </button>
-
-                    <button
-                        onClick={() => { setActiveView("trash"); fetchData("", "trash"); }}
-                        className={cn(
-                            "w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors",
-                            activeView === "trash" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
-                        )}
-                    >
-                        <Trash2 size={20} />
-                        <span className="font-medium">Lixeira</span>
-                    </button>
-
-                    <div className="border-t border-gray-200 my-4"></div>
-
-                    <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                        <LogOut size={20} />
-                        <span className="font-medium">Sair</span>
-                    </button>
-                </nav>
-            </aside>
+            <Sidebar
+                activeView={activeView}
+                activeCategory={activeCategory}
+                onViewChange={handleViewChange}
+                onCategoryChange={handleCategoryChange}
+                onLogout={handleLogout}
+            />
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col overflow-hidden">
-                {/* Header */}
-                <header className="bg-white border-b border-gray-200 px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        {/* Breadcrumbs */}
-                        <div className="flex items-center gap-2 text-sm">
-                            {getBreadcrumbs().map((crumb, index) => (
-                                <div key={crumb.path} className="flex items-center gap-2">
-                                    {index > 0 && <ChevronRight size={16} className="text-gray-400" />}
-                                    <button
-                                        onClick={() => navigateTo(crumb.path)}
-                                        className={cn(
-                                            "hover:text-blue-600 transition-colors",
-                                            index === getBreadcrumbs().length - 1 ? "text-gray-900 font-medium" : "text-gray-600"
-                                        )}
-                                    >
-                                        {crumb.name}
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Search */}
-                        <div className="flex items-center gap-4">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                <input
-                                    type="text"
-                                    placeholder="Buscar arquivos..."
-                                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </header>
+                {/* TopBar */}
+                <TopBar
+                    breadcrumbs={getBreadcrumbs()}
+                    onNavigate={navigateTo}
+                    onUpload={() => console.log("Upload")}
+                    onNewFolder={() => console.log("New Folder")}
+                    onSearch={(query) => console.log("Search:", query)}
+                />
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto p-6">
-                    {loading ? (
-                        <div className="flex items-center justify-center h-64">
-                            <div className="text-gray-500">Carregando...</div>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Show disks on home view */}
-                            {activeView === "home" && currentPath === "" && disks.length > 0 && (
-                                <div className="mb-8">
-                                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Meus Discos</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                        {disks.map(disk => (
-                                            <div
-                                                key={disk.mount}
-                                                onClick={() => navigateTo(disk.mount)}
-                                                className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer"
-                                            >
-                                                <div className="flex items-start justify-between mb-3">
-                                                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                                        <HardDrive className="w-6 h-6 text-blue-600" />
-                                                    </div>
-                                                    <span className="text-xs font-medium text-gray-500">{disk.percent}%</span>
-                                                </div>
-                                                <h3 className="font-medium text-gray-900 mb-1">{disk.name}</h3>
-                                                <p className="text-xs text-gray-500">{formatBytes(disk.used)} / {formatBytes(disk.size)}</p>
-                                                <div className="mt-3 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-blue-600" style={{ width: `${disk.percent}%` }}></div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                    <AnimatePresence mode="wait">
+                        {loading ? (
+                            <LoadingSkeleton key="loading" />
+                        ) : (
+                            <motion.div
+                                key={activeView + activeCategory + currentPath}
+                                variants={pageTransition}
+                                initial="hidden"
+                                animate="visible"
+                                exit="exit"
+                            >
+                                {/* HOME VIEW - Show Categories + Disks */}
+                                {activeView === "home" && currentPath === "" && (
+                                    <div className="space-y-8">
+                                        {/* Category Cards */}
+                                        {categoryStats && (
+                                            <section>
+                                                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                                                    Meus Arquivos
+                                                </h2>
+                                                <motion.div
+                                                    variants={staggerContainer}
+                                                    initial="hidden"
+                                                    animate="visible"
+                                                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                                                >
+                                                    <CategoryCard
+                                                        category="imagens"
+                                                        count={categoryStats.imagens.count}
+                                                        size={categoryStats.imagens.size}
+                                                        onClick={() => handleCategoryChange("imagens")}
+                                                    />
+                                                    <CategoryCard
+                                                        category="videos"
+                                                        count={categoryStats.videos.count}
+                                                        size={categoryStats.videos.size}
+                                                        onClick={() => handleCategoryChange("videos")}
+                                                    />
+                                                    <CategoryCard
+                                                        category="musicas"
+                                                        count={categoryStats.musicas.count}
+                                                        size={categoryStats.musicas.size}
+                                                        onClick={() => handleCategoryChange("musicas")}
+                                                    />
+                                                    <CategoryCard
+                                                        category="documentos"
+                                                        count={categoryStats.documentos.count}
+                                                        size={categoryStats.documentos.size}
+                                                        onClick={() => handleCategoryChange("documentos")}
+                                                    />
+                                                </motion.div>
+                                            </section>
+                                        )}
 
-                            {/* Files and Folders Grid */}
-                            {files.length > 0 ? (
-                                <div>
-                                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                                        {activeView === "recent" && "Arquivos Recentes"}
-                                        {activeView === "favorites" && "Favoritos"}
-                                        {activeView === "trash" && "Lixeira"}
-                                        {activeView === "home" && currentPath && "Conteúdo"}
-                                        {activeView === "home" && !currentPath && files.length > 0 && "Pastas Rápidas"}
-                                    </h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                        {files.map(file => (
-                                            <div
-                                                key={file.path}
-                                                onClick={() => file.isDirectory && navigateTo(file.path)}
-                                                className={cn(
-                                                    "bg-white border border-gray-200 rounded-lg p-4 transition-all",
-                                                    file.isDirectory ? "hover:shadow-lg hover:border-blue-300 cursor-pointer" : "hover:shadow-md"
-                                                )}
-                                            >
-                                                <div className="flex items-start gap-3">
-                                                    <div className="flex-shrink-0">
-                                                        {getFileIcon(file)}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <h3 className="font-medium text-gray-900 truncate">{file.name}</h3>
-                                                        <p className="text-xs text-gray-500 mt-1">
-                                                            {formatBytes(file.size)} • {new Date(file.modifiedAt).toLocaleDateString()}
-                                                        </p>
-                                                    </div>
-                                                    <button className="flex-shrink-0 p-1 hover:bg-gray-100 rounded">
-                                                        <MoreVertical size={16} className="text-gray-400" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                        {/* Disk Cards */}
+                                        {disks.length > 0 && (
+                                            <section>
+                                                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                                                    Meus Discos
+                                                </h2>
+                                                <motion.div
+                                                    variants={staggerContainer}
+                                                    initial="hidden"
+                                                    animate="visible"
+                                                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                                                >
+                                                    {disks.map(disk => (
+                                                        <DiskCard
+                                                            key={disk.mount}
+                                                            name={disk.name}
+                                                            mount={disk.mount}
+                                                            size={disk.size}
+                                                            used={disk.used}
+                                                            percent={disk.percent}
+                                                            type={disk.type}
+                                                            onClick={() => navigateTo(disk.mount)}
+                                                        />
+                                                    ))}
+                                                </motion.div>
+                                            </section>
+                                        )}
+
+                                        {/* Quick Access Folders */}
+                                        {files.length > 0 && (
+                                            <section>
+                                                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                                                    Acesso Rápido
+                                                </h2>
+                                                <FileGrid
+                                                    files={files}
+                                                    onFileClick={handleFileClick}
+                                                />
+                                            </section>
+                                        )}
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                                    <Folder size={48} className="mb-4 text-gray-300" />
-                                    <p>Nenhum arquivo encontrado</p>
-                                </div>
-                            )}
-                        </>
-                    )}
+                                )}
+
+                                {/* CATEGORY VIEW */}
+                                {activeView === "category" && (
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                                            {getCategoryDisplayName(activeCategory)}
+                                        </h2>
+                                        <FileGrid
+                                            files={files}
+                                            onFileClick={handleFileClick}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* FOLDER VIEW */}
+                                {activeView === "home" && currentPath !== "" && (
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                                            Conteúdo
+                                        </h2>
+                                        <FileGrid
+                                            files={files}
+                                            onFileClick={handleFileClick}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* RECENT VIEW */}
+                                {activeView === "recent" && (
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                                            Arquivos Recentes
+                                        </h2>
+                                        <FileGrid
+                                            files={files}
+                                            onFileClick={handleFileClick}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* FAVORITES VIEW */}
+                                {activeView === "favorites" && (
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                                            Favoritos
+                                        </h2>
+                                        <FileGrid
+                                            files={files}
+                                            onFileClick={handleFileClick}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* TRASH VIEW */}
+                                {activeView === "trash" && (
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                                            Lixeira
+                                        </h2>
+                                        <FileGrid
+                                            files={files}
+                                            onFileClick={handleFileClick}
+                                        />
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </main>
+        </div>
+    );
+}
+
+// Loading Skeleton Component
+function LoadingSkeleton() {
+    return (
+        <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="bg-white rounded-2xl p-6 shadow-lg">
+                        <div className="skeleton w-14 h-14 rounded-xl mb-4" />
+                        <div className="skeleton w-32 h-6 mb-2" />
+                        <div className="skeleton w-24 h-4 mb-1" />
+                        <div className="skeleton w-28 h-4" />
+                    </div>
+                ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                    <div key={i} className="bg-white rounded-xl p-4 shadow-md">
+                        <div className="flex items-start gap-3">
+                            <div className="skeleton w-12 h-12 rounded-lg" />
+                            <div className="flex-1">
+                                <div className="skeleton w-full h-4 mb-2" />
+                                <div className="skeleton w-24 h-3" />
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
