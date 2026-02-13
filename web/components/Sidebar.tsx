@@ -14,15 +14,16 @@ import {
     FileText,
     ChevronLeft,
     Menu,
-    X
+    X,
+    Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { slideInFromLeft, staggerContainer, staggerItem } from "@/lib/animations";
 
 interface SidebarProps {
-    activeView: "home" | "recent" | "favorites" | "trash" | "category";
+    activeView: "home" | "recent" | "favorites" | "trash" | "category" | "settings";
     activeCategory?: string;
-    onViewChange: (view: "home" | "recent" | "favorites" | "trash") => void;
+    onViewChange: (view: "home" | "recent" | "favorites" | "trash" | "settings") => void;
     onCategoryChange: (category: string) => void;
     onLogout: () => void;
 }
@@ -54,6 +55,7 @@ export default function Sidebar({
         { id: "home", label: "Início", icon: Home, view: "home" as const },
         { id: "recent", label: "Recentes", icon: Clock, view: "recent" as const },
         { id: "favorites", label: "Favoritos", icon: Star, view: "favorites" as const },
+        { id: "settings", label: "Configuração", icon: Settings, view: "settings" as const },
         { id: "trash", label: "Lixeira", icon: Trash2, view: "trash" as const },
     ];
 

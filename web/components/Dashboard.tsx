@@ -13,6 +13,7 @@ import FileGrid from "./FileGrid";
 import FilePreview from "./FilePreview";
 import CreateFolderModal from "./modals/CreateFolderModal";
 import UploadModal from "./modals/UploadModal";
+import SettingsPage from "@/app/dashboard/settings/page";
 import { pageTransition, staggerContainer } from "@/lib/animations";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -51,7 +52,7 @@ export default function Dashboard() {
     const [categoryStats, setCategoryStats] = useState<CategoryStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>("");
-    const [activeView, setActiveView] = useState<"home" | "recent" | "favorites" | "trash" | "category">("home");
+    const [activeView, setActiveView] = useState<"home" | "recent" | "favorites" | "trash" | "category" | "settings">("home");
     const [activeCategory, setActiveCategory] = useState<string>("");
     const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
     const [previewIndex, setPreviewIndex] = useState<number>(-1);
@@ -108,11 +109,21 @@ export default function Dashboard() {
     };
 
     // Change view
-    const handleViewChange = (view: "home" | "recent" | "favorites" | "trash") => {
+    const handleViewChange = (view: "home" | "recent" | "favorites" | "trash" | "settings") => {
         setActiveView(view);
         setActiveCategory("");
         setSearchQuery("");
         setFilterType("all");
+
+        if (view === "settings") {
+            setLoading(false);
+            setFiles([]);
+            setDisks([]);
+            setCategoryStats(null);
+            setCurrentPath("");
+            return;
+        }
+
         if (view === "home") {
             fetchData("");
         } else {
@@ -398,193 +409,199 @@ export default function Dashboard() {
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
-                    {/* Error Message */}
-                    {error && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="mb-8 bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-4 shadow-sm"
-                        >
-                            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <div className="flex-1">
-                                <h3 className="font-bold text-red-900">Erro na Operação</h3>
-                                <p className="text-sm text-red-700 mt-1">{error}</p>
-                            </div>
-                            <button
-                                onClick={() => fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined)}
-                                className="px-4 py-2 bg-white border border-red-200 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                                Tentar novamente
-                            </button>
-                        </motion.div>
-                    )}
-
-                    {/* Filters Bar (Internal) */}
-                    {activeView !== "home" || currentPath ? (
-                        <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
-                            <h2 className="text-2xl font-black text-slate-800">
-                                {activeView === "home" ? (currentPath ? "Arquivos" : "Painel") :
-                                    activeView === "category" ? getCategoryDisplayName(activeCategory) :
-                                        getBreadcrumbs().slice(-1)[0].name}
-                            </h2>
-
-                            <div className="flex items-center gap-2 bg-white p-1 rounded-2xl shadow-sm border border-slate-100">
-                                {activeView === "trash" && files.length > 0 && (
-                                    <button
-                                        onClick={handleEmptyTrash}
-                                        className="px-4 py-1.5 rounded-xl text-sm font-bold bg-red-50 text-red-600 hover:bg-red-100 transition-all mr-2 flex items-center gap-2"
-                                    >
-                                        <Trash2 size={16} />
-                                        Esvaziar Lixeira
-                                    </button>
-                                )}
-                                <button
-                                    onClick={() => setFilterType("all")}
-                                    className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "all" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
+                    {activeView === 'settings' ? (
+                        <SettingsPage />
+                    ) : (
+                        <>
+                            {/* Error Message */}
+                            {error && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="mb-8 bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-4 shadow-sm"
                                 >
-                                    Todos
-                                </button>
-                                <button
-                                    onClick={() => setFilterType("folders")}
-                                    className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "folders" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
-                                >
-                                    Pastas
-                                </button>
-                                <button
-                                    onClick={() => setFilterType("files")}
-                                    className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "files" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
-                                >
-                                    Arquivos
-                                </button>
-                            </div>
-                        </div>
-                    ) : null}
-
-                    <AnimatePresence mode="wait">
-                        {loading ? (
-                            <LoadingSkeleton key="loading" />
-                        ) : (
-                            <motion.div
-                                key={activeView + activeCategory + currentPath + searchQuery + filterType}
-                                variants={pageTransition}
-                                initial="hidden"
-                                animate="visible"
-                                exit="exit"
-                                className="pb-12"
-                            >
-                                {/* HOME VIEW - Show Categories + Disks */}
-                                {activeView === "home" && !currentPath && (
-                                    <div className="space-y-12">
-                                        {/* Category Cards */}
-                                        {categoryStats && (
-                                            <section>
-                                                <div className="flex items-center justify-between mb-8">
-                                                    <div>
-                                                        <h2 className="text-3xl font-black text-slate-900">Meu Armazenamento</h2>
-                                                        <p className="text-slate-500">Acesse seus arquivos por categoria</p>
-                                                    </div>
-                                                </div>
-                                                <motion.div
-                                                    variants={staggerContainer}
-                                                    initial="hidden"
-                                                    animate="visible"
-                                                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
-                                                >
-                                                    <CategoryCard
-                                                        category="imagens"
-                                                        count={categoryStats.imagens?.count || 0}
-                                                        size={categoryStats.imagens?.size || 0}
-                                                        onClick={() => handleCategoryChange("imagens")}
-                                                    />
-                                                    <CategoryCard
-                                                        category="videos"
-                                                        count={categoryStats.videos?.count || 0}
-                                                        size={categoryStats.videos?.size || 0}
-                                                        onClick={() => handleCategoryChange("videos")}
-                                                    />
-                                                    <CategoryCard
-                                                        category="musicas"
-                                                        count={categoryStats.musicas?.count || 0}
-                                                        size={categoryStats.musicas?.size || 0}
-                                                        onClick={() => handleCategoryChange("musicas")}
-                                                    />
-                                                    <CategoryCard
-                                                        category="documentos"
-                                                        count={categoryStats.documentos?.count || 0}
-                                                        size={categoryStats.documentos?.size || 0}
-                                                        onClick={() => handleCategoryChange("documentos")}
-                                                    />
-                                                </motion.div>
-                                            </section>
-                                        )}
-
-                                        {/* Disk Cards */}
-                                        {disks.length > 0 && (
-                                            <section>
-                                                <div className="mb-8">
-                                                    <h2 className="text-3xl font-black text-slate-900">Dispositivos Conectados</h2>
-                                                    <p className="text-slate-500">Unidades de disco locais e externas</p>
-                                                </div>
-                                                <motion.div
-                                                    variants={staggerContainer}
-                                                    initial="hidden"
-                                                    animate="visible"
-                                                    className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6"
-                                                >
-                                                    {disks.map(disk => (
-                                                        <DiskCard
-                                                            key={disk.mount}
-                                                            name={disk.name}
-                                                            mount={disk.mount}
-                                                            size={disk.size}
-                                                            used={disk.used}
-                                                            percent={disk.percent}
-                                                            type={disk.type}
-                                                            onClick={() => navigateTo(disk.mount)}
-                                                        />
-                                                    ))}
-                                                </motion.div>
-                                            </section>
-                                        )}
-
-                                        {/* Recent files if on home */}
-                                        {files.length > 0 && (
-                                            <section>
-                                                <div className="flex items-center justify-between mb-8">
-                                                    <div>
-                                                        <h2 className="text-3xl font-black text-slate-900">Arquivos Rápidos</h2>
-                                                        <p className="text-slate-500">Itens encontrados no diretório pessoal</p>
-                                                    </div>
-                                                </div>
-                                                <FileGrid
-                                                    files={filteredFiles}
-                                                    onFileClick={handleFileClick}
-                                                    onToggleFavorite={handleToggleFavorite}
-                                                    onDelete={handleDelete}
-                                                    viewMode={viewMode}
-                                                />
-                                            </section>
-                                        )}
+                                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
                                     </div>
-                                )}
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-red-900">Erro na Operação</h3>
+                                        <p className="text-sm text-red-700 mt-1">{error}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined)}
+                                        className="px-4 py-2 bg-white border border-red-200 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                                    >
+                                        Tentar novamente
+                                    </button>
+                                </motion.div>
+                            )}
 
-                                {/* OTHER VIEWS */}
-                                {(activeView !== "home" || currentPath) && (
-                                    <FileGrid
-                                        files={filteredFiles}
-                                        onFileClick={handleFileClick}
-                                        onToggleFavorite={handleToggleFavorite}
-                                        onDelete={handleDelete}
-                                        viewMode={viewMode}
-                                    />
+                            {/* Filters Bar (Internal) */}
+                            {activeView !== "home" || currentPath ? (
+                                <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
+                                    <h2 className="text-2xl font-black text-slate-800">
+                                        {activeView === "home" ? (currentPath ? "Arquivos" : "Painel") :
+                                            activeView === "category" ? getCategoryDisplayName(activeCategory) :
+                                                getBreadcrumbs().slice(-1)[0].name}
+                                    </h2>
+
+                                    <div className="flex items-center gap-2 bg-white p-1 rounded-2xl shadow-sm border border-slate-100">
+                                        {activeView === "trash" && files.length > 0 && (
+                                            <button
+                                                onClick={handleEmptyTrash}
+                                                className="px-4 py-1.5 rounded-xl text-sm font-bold bg-red-50 text-red-600 hover:bg-red-100 transition-all mr-2 flex items-center gap-2"
+                                            >
+                                                <Trash2 size={16} />
+                                                Esvaziar Lixeira
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setFilterType("all")}
+                                            className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "all" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
+                                        >
+                                            Todos
+                                        </button>
+                                        <button
+                                            onClick={() => setFilterType("folders")}
+                                            className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "folders" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
+                                        >
+                                            Pastas
+                                        </button>
+                                        <button
+                                            onClick={() => setFilterType("files")}
+                                            className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "files" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
+                                        >
+                                            Arquivos
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            <AnimatePresence mode="wait">
+                                {loading ? (
+                                    <LoadingSkeleton key="loading" />
+                                ) : (
+                                    <motion.div
+                                        key={activeView + activeCategory + currentPath + searchQuery + filterType}
+                                        variants={pageTransition}
+                                        initial="hidden"
+                                        animate="visible"
+                                        exit="exit"
+                                        className="pb-12"
+                                    >
+                                        {/* HOME VIEW - Show Categories + Disks */}
+                                        {activeView === "home" && !currentPath && (
+                                            <div className="space-y-12">
+                                                {/* Category Cards */}
+                                                {categoryStats && (
+                                                    <section>
+                                                        <div className="flex items-center justify-between mb-8">
+                                                            <div>
+                                                                <h2 className="text-3xl font-black text-slate-900">Meu Armazenamento</h2>
+                                                                <p className="text-slate-500">Acesse seus arquivos por categoria</p>
+                                                            </div>
+                                                        </div>
+                                                        <motion.div
+                                                            variants={staggerContainer}
+                                                            initial="hidden"
+                                                            animate="visible"
+                                                            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+                                                        >
+                                                            <CategoryCard
+                                                                category="imagens"
+                                                                count={categoryStats.imagens?.count || 0}
+                                                                size={categoryStats.imagens?.size || 0}
+                                                                onClick={() => handleCategoryChange("imagens")}
+                                                            />
+                                                            <CategoryCard
+                                                                category="videos"
+                                                                count={categoryStats.videos?.count || 0}
+                                                                size={categoryStats.videos?.size || 0}
+                                                                onClick={() => handleCategoryChange("videos")}
+                                                            />
+                                                            <CategoryCard
+                                                                category="musicas"
+                                                                count={categoryStats.musicas?.count || 0}
+                                                                size={categoryStats.musicas?.size || 0}
+                                                                onClick={() => handleCategoryChange("musicas")}
+                                                            />
+                                                            <CategoryCard
+                                                                category="documentos"
+                                                                count={categoryStats.documentos?.count || 0}
+                                                                size={categoryStats.documentos?.size || 0}
+                                                                onClick={() => handleCategoryChange("documentos")}
+                                                            />
+                                                        </motion.div>
+                                                    </section>
+                                                )}
+
+                                                {/* Disk Cards */}
+                                                {disks.length > 0 && (
+                                                    <section>
+                                                        <div className="mb-8">
+                                                            <h2 className="text-3xl font-black text-slate-900">Dispositivos Conectados</h2>
+                                                            <p className="text-slate-500">Unidades de disco locais e externas</p>
+                                                        </div>
+                                                        <motion.div
+                                                            variants={staggerContainer}
+                                                            initial="hidden"
+                                                            animate="visible"
+                                                            className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6"
+                                                        >
+                                                            {disks.map(disk => (
+                                                                <DiskCard
+                                                                    key={disk.mount}
+                                                                    name={disk.name}
+                                                                    mount={disk.mount}
+                                                                    size={disk.size}
+                                                                    used={disk.used}
+                                                                    percent={disk.percent}
+                                                                    type={disk.type}
+                                                                    onClick={() => navigateTo(disk.mount)}
+                                                                />
+                                                            ))}
+                                                        </motion.div>
+                                                    </section>
+                                                )}
+
+                                                {/* Recent files if on home */}
+                                                {files.length > 0 && (
+                                                    <section>
+                                                        <div className="flex items-center justify-between mb-8">
+                                                            <div>
+                                                                <h2 className="text-3xl font-black text-slate-900">Arquivos Rápidos</h2>
+                                                                <p className="text-slate-500">Itens encontrados no diretório pessoal</p>
+                                                            </div>
+                                                        </div>
+                                                        <FileGrid
+                                                            files={filteredFiles}
+                                                            onFileClick={handleFileClick}
+                                                            onToggleFavorite={handleToggleFavorite}
+                                                            onDelete={handleDelete}
+                                                            viewMode={viewMode}
+                                                        />
+                                                    </section>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* OTHER VIEWS */}
+                                        {(activeView !== "home" || currentPath) && (
+                                            <FileGrid
+                                                files={filteredFiles}
+                                                onFileClick={handleFileClick}
+                                                onToggleFavorite={handleToggleFavorite}
+                                                onDelete={handleDelete}
+                                                viewMode={viewMode}
+                                            />
+                                        )}
+                                    </motion.div>
                                 )}
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                            </AnimatePresence>
+                        </>
+                    )}
                 </div>
 
                 {/* Upload Status Overlay */}

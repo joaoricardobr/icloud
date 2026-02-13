@@ -521,6 +521,22 @@ export const permanentDelete = async (req: Request, res: Response) => {
     }
 };
 
+// Get backend logs
+export const getLogs = async (req: Request, res: Response) => {
+    try {
+        const logFilePath = path.join(__dirname, '..', '..', 'logs', 'backend.log');
+        if (fs.existsSync(logFilePath)) {
+            const logs = fs.readFileSync(logFilePath, 'utf-8');
+            res.json({ logs });
+        } else {
+            res.json({ logs: 'Log file not found.' });
+        }
+    } catch (error: any) {
+        console.error('[getLogs] Error:', error);
+        res.status(500).json({ error: error.message, logs: '' });
+    }
+};
+
 // Empty Trash folder
 export const emptyTrash = async (req: Request, res: Response) => {
     try {

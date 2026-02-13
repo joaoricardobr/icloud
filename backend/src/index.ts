@@ -4,6 +4,30 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { db } from './config/firebase';
+import fs from 'fs';
+import path from 'path';
+
+// Setup file logging
+const logDirectory = path.join(__dirname, '..', 'logs');
+if (!fs.existsSync(logDirectory)) {
+    fs.mkdirSync(logDirectory);
+}
+const logStream = fs.createWriteStream(path.join(logDirectory, 'backend.log'), { flags: 'a' });
+
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
+console.log = function (message, ...optionalParams) {
+    const logMessage = `[LOG] [${new Date().toISOString()}] ${message} ${optionalParams.join(' ')}\n`;
+    logStream.write(logMessage);
+    originalConsoleLog.apply(console, [message, ...optionalParams]);
+};
+
+console.error = function (message, ...optionalParams) {
+    const errorMessage = `[ERROR] [${new Date().toISOString()}] ${message} ${optionalParams.join(' ')}\n`;
+    logStream.write(errorMessage);
+    originalConsoleError.apply(console, [message, ...optionalParams]);
+};
 
 dotenv.config();
 
@@ -14,6 +38,11 @@ const PORT = process.env.PORT || 3001;
 import deviceRoutes from './routes/deviceRoutes';
 
 // Middleware
+app.use((req, res, next) => {
+    console.log('Incoming request headers:', req.headers);
+    next();
+});
+
 app.use(helmet({
     crossOriginResourcePolicy: false,
     crossOriginEmbedderPolicy: false
@@ -21,17 +50,20 @@ app.use(helmet({
 
 const allowedOrigins = [
     'https://icloudbr.vercel.app',
+    'https://clouddesk-iota.vercel.app',
     'http://localhost:3000',
     'http://localhost:3001'
 ];
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl requests)
+        // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
+
+        if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('.trycloudflare.com')) {
             callback(null, true);
         } else {
+            console.warn(`CORS blocked for origin: ${origin}`);
             callback(new Error('Not allowed by CORS'));
         }
     },

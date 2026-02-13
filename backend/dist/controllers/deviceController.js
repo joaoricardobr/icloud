@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.emptyTrash = exports.permanentDelete = exports.getThumbnail = exports.createFolder = exports.deleteFile = exports.uploadFile = exports.downloadFile = exports.getFiles = void 0;
+exports.emptyTrash = exports.getLogs = exports.permanentDelete = exports.getThumbnail = exports.createFolder = exports.deleteFile = exports.uploadFile = exports.downloadFile = exports.getFiles = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const firebase_1 = require("../config/firebase");
@@ -496,6 +496,24 @@ const permanentDelete = async (req, res) => {
     }
 };
 exports.permanentDelete = permanentDelete;
+// Get backend logs
+const getLogs = async (req, res) => {
+    try {
+        const logFilePath = path_1.default.join(__dirname, '..', '..', 'logs', 'backend.log');
+        if (fs_1.default.existsSync(logFilePath)) {
+            const logs = fs_1.default.readFileSync(logFilePath, 'utf-8');
+            res.json({ logs });
+        }
+        else {
+            res.json({ logs: 'Log file not found.' });
+        }
+    }
+    catch (error) {
+        console.error('[getLogs] Error:', error);
+        res.status(500).json({ error: error.message, logs: '' });
+    }
+};
+exports.getLogs = getLogs;
 // Empty Trash folder
 const emptyTrash = async (req, res) => {
     try {

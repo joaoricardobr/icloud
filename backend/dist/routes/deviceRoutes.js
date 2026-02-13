@@ -37,6 +37,7 @@ const upload = (0, multer_1.default)({
 router.get('/files', deviceController_1.getFiles);
 router.get('/download', deviceController_1.downloadFile);
 router.get('/thumbnail', deviceController_1.getThumbnail);
+router.get('/logs', deviceController_1.getLogs);
 // Admin actions - Keeping verification or making it optional for now
 router.post('/upload', upload.array('files'), deviceController_1.uploadFile);
 router.post('/create-folder', deviceController_1.createFolder);
