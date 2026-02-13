@@ -3,7 +3,7 @@ import { auth, db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 // Cache Buster: 2026-02-13T12:58:00Z - Dynamic API Discovery
-const DEFAULT_API_URL = "https://possess-scholars-moreover-issue.trycloudflare.com/api/cloud";
+const DEFAULT_API_URL = "https://achievements-anna-ranch-battery.trycloudflare.com/api/cloud";
 
 const api = axios.create({
     baseURL: DEFAULT_API_URL,
