@@ -4,7 +4,7 @@ import { auth } from "./firebase";
 
 const api = axios.create({
     // Prioritize the hardcoded URL which is updated by the /sync script
-    baseURL: "https://trustee-broadband-reader-complement.trycloudflare.com/api/cloud",
+    baseURL: "https://acer-activities-tissue-lite.trycloudflare.com/api/cloud",
     headers: {
         "Content-Type": "application/json",
     },
