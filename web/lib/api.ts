@@ -2,7 +2,8 @@ import axios from "axios";
 import { auth } from "./firebase";
 
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || "https://signatures-nations-beautifully-wav.trycloudflare.com/api/cloud",
+    // Prioritize the hardcoded URL which is updated by the /sync script
+    baseURL: "https://trustee-broadband-reader-complement.trycloudflare.com/api/cloud",
     headers: {
         "Content-Type": "application/json",
     },
