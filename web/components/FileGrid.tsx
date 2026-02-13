@@ -157,7 +157,7 @@ export default function FileGrid({
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4 md:gap-6"
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2 md:gap-6"
         >
             {files.map((file) => {
                 const Icon = getFileIcon(file.name, file.isDirectory);
@@ -174,7 +174,10 @@ export default function FileGrid({
                             e.preventDefault();
                             onContextMenu?.(file, e);
                         }}
-                        className="group bg-white rounded-3xl p-4 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 transition-all border border-slate-100 cursor-pointer relative"
+                        className={cn(
+                            "group bg-white rounded-2xl md:rounded-3xl p-2 md:p-4 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 transition-all border border-slate-100 cursor-pointer relative overflow-hidden",
+                            file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i) && "aspect-square"
+                        )}
                     >
                         {/* Selection Indicator */}
                         {(selectionMode || selectedPaths.length > 0) && (
@@ -206,6 +209,12 @@ export default function FileGrid({
                                 className="p-1.5 rounded-full bg-white/90 backdrop-blur shadow-sm border border-slate-100 hover:scale-110 transition-transform text-slate-400 hover:text-blue-600"
                             >
                                 <Share2 size={14} />
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onDelete?.(file); }}
+                                className="p-1.5 rounded-full bg-white/90 backdrop-blur shadow-sm border border-slate-100 hover:scale-110 transition-transform text-slate-400 hover:text-red-500"
+                            >
+                                <Trash2 size={14} />
                             </button>
                         </div>
 
@@ -242,15 +251,8 @@ export default function FileGrid({
                             </div>
                         </div>
 
-                        {/* Hover Footer Actions */}
-                        <div className="absolute inset-x-0 bottom-0 p-2 transform translate-y-2 md:opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all flex justify-center">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onDelete?.(file); }}
-                                className="bg-red-50 text-red-500 p-2 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-red-500 hover:text-white transition-colors shadow-lg"
-                            >
-                                <Trash2 size={12} />
-                                Lixeira
-                            </button>
+                        {/* Hover Footer Actions (Always hidden now, replaced by top actions) */}
+                        <div className="absolute inset-x-0 bottom-0 p-2 transform translate-y-2 opacity-0 group-hover:translate-y-0 pointer-events-none transition-all flex justify-center">
                         </div>
                     </motion.div>
                 );

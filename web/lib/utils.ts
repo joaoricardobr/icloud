@@ -112,7 +112,8 @@ export function getFileColor(fileName: string, isDirectory: boolean = false): st
 }
 
 export function getCategoryIcon(category: string) {
-    switch (category) {
+    const normalized = category.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    switch (normalized) {
         case 'imagens':
             return Image;
         case 'videos':
@@ -127,7 +128,8 @@ export function getCategoryIcon(category: string) {
 }
 
 export function getCategoryColor(category: string): string {
-    switch (category) {
+    const normalized = category.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    switch (normalized) {
         case 'imagens':
             return 'from-green-500 to-emerald-600 shadow-green-200';
         case 'videos':
@@ -142,7 +144,8 @@ export function getCategoryColor(category: string): string {
 }
 
 export function getCategoryName(category: string): string {
-    switch (category) {
+    const normalized = category.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    switch (normalized) {
         case 'imagens':
             return 'Imagens';
         case 'videos':
@@ -152,6 +155,6 @@ export function getCategoryName(category: string): string {
         case 'documentos':
             return 'Documentos';
         default:
-            return category;
+            return category.charAt(0).toUpperCase() + category.slice(1);
     }
 }
