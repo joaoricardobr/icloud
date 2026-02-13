@@ -10,6 +10,7 @@ import TopBar from "./TopBar";
 import DiskCard from "./DiskCard";
 import CategoryCard from "./CategoryCard";
 import FileGrid from "./FileGrid";
+import FilePreview from "./FilePreview";
 import { pageTransition, staggerContainer } from "@/lib/animations";
 
 interface FileItem {
@@ -47,6 +48,8 @@ export default function Dashboard() {
     const [error, setError] = useState<string>("");
     const [activeView, setActiveView] = useState<"home" | "recent" | "favorites" | "trash" | "category">("home");
     const [activeCategory, setActiveCategory] = useState<string>("");
+    const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
+    const [previewIndex, setPreviewIndex] = useState<number>(-1);
 
     // Fetch data from backend
     const fetchData = async (path: string = "", mode?: string, category?: string) => {
@@ -129,9 +132,66 @@ export default function Dashboard() {
         if (file.isDirectory) {
             navigateTo(file.path);
         } else {
-            // TODO: Open file preview
-            console.log("Open file:", file.path);
+            // Open file preview
+            const fileIndex = files.findIndex(f => f.path === file.path);
+            setPreviewFile(file);
+            setPreviewIndex(fileIndex);
         }
+    };
+
+    // Navigate to next file in preview
+    const handleNextFile = () => {
+        const nextIndex = previewIndex + 1;
+        if (nextIndex < files.length) {
+            const nextFile = files[nextIndex];
+            if (!nextFile.isDirectory) {
+                setPreviewFile(nextFile);
+                setPreviewIndex(nextIndex);
+            } else {
+                // Skip directories
+                let i = nextIndex + 1;
+                while (i < files.length && files[i].isDirectory) i++;
+                if (i < files.length) {
+                    setPreviewFile(files[i]);
+                    setPreviewIndex(i);
+                }
+            }
+        }
+    };
+
+    // Navigate to previous file in preview
+    const handlePreviousFile = () => {
+        const prevIndex = previewIndex - 1;
+        if (prevIndex >= 0) {
+            const prevFile = files[prevIndex];
+            if (!prevFile.isDirectory) {
+                setPreviewFile(prevFile);
+                setPreviewIndex(prevIndex);
+            } else {
+                // Skip directories
+                let i = prevIndex - 1;
+                while (i >= 0 && files[i].isDirectory) i--;
+                if (i >= 0) {
+                    setPreviewFile(files[i]);
+                    setPreviewIndex(i);
+                }
+            }
+        }
+    };
+
+    // Check if there are next/previous files
+    const hasNextFile = () => {
+        for (let i = previewIndex + 1; i < files.length; i++) {
+            if (!files[i].isDirectory) return true;
+        }
+        return false;
+    };
+
+    const hasPreviousFile = () => {
+        for (let i = previewIndex - 1; i >= 0; i--) {
+            if (!files[i].isDirectory) return true;
+        }
+        return false;
     };
 
     // Generate breadcrumbs
