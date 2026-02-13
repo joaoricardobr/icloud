@@ -8,3 +8,4 @@ frontend.log
 frontend-new.log
 *.log
 node_modules
+backend/service-account.json
