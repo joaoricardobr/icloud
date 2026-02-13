@@ -1,10 +1,25 @@
 const admin = require('firebase-admin');
+const path = require('path');
+const fs = require('fs');
 
-// Initialize with minimal config (uses default credentials or project ID)
+// Path to service account file
+const serviceAccountPath = path.join(__dirname, '..', '..', 'service-account.json');
+const serviceAccountExists = fs.existsSync(serviceAccountPath);
+
+// Initialize with service account if available, otherwise use default
 if (!admin.apps.length) {
-    admin.initializeApp({
-        projectId: "cloud-engenheiros"
-    });
+    if (serviceAccountExists) {
+        console.log('🔑 Usando service-account.json para autenticação.');
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccountPath),
+            projectId: "cloud-engenheiros"
+        });
+    } else {
+        console.warn('⚠️ service-account.json não encontrado. Tentando credenciais padrão do Google...');
+        admin.initializeApp({
+            projectId: "cloud-engenheiros"
+        });
+    }
 }
 
 const db = admin.firestore();

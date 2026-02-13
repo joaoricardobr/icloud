@@ -13,19 +13,30 @@ const api = axios.create({
 });
 
 // Dynamic BaseURL Discovery
-const updateBaseURL = async () => {
+const updateBaseURL = async (retryCount = 0) => {
     try {
+        console.log("🔍 Tentando carregar URL dinâmica do Firestore (tentativa " + (retryCount + 1) + ")...");
         const configDoc = await getDoc(doc(db, "settings", "api_config"));
+
         if (configDoc.exists()) {
             const data = configDoc.data();
             if (data.baseUrl) {
                 api.defaults.baseURL = data.baseUrl;
-                console.log("📡 CloudDesk API URL dinâmica carregada:", api.defaults.baseURL);
+                console.log("✅ CloudDesk API URL dinâmica carregada:", api.defaults.baseURL);
+                return;
             }
+        } else {
+            console.warn("ℹ️ Documento 'settings/api_config' não encontrado no Firestore.");
         }
-    } catch (err) {
-        console.warn("⚠️ Falha ao carregar URL dinâmica, usando padrão:", api.defaults.baseURL);
+    } catch (err: any) {
+        console.error("❌ Erro ao acessar Firestore:", err.message || err);
+        if (retryCount < 2) {
+            console.log("⏳ Tentando novamente em 2 segundos...");
+            setTimeout(() => updateBaseURL(retryCount + 1), 2000);
+            return;
+        }
     }
+    console.warn("⚠️ Usando URL padrão:", api.defaults.baseURL);
 };
 
 // Start discovery immediately
