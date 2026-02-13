@@ -2,7 +2,7 @@ import axios from "axios";
 import { auth } from "./firebase";
 
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/cloud",
+    baseURL: process.env.NEXT_PUBLIC_API_URL || "https://canvas-lived-hide-availability.trycloudflare.com/api/cloud",
     headers: {
         "Content-Type": "application/json",
     },
