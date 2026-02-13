@@ -44,12 +44,14 @@ export default function Dashboard() {
     const [disks, setDisks] = useState<Disk[]>([]);
     const [categoryStats, setCategoryStats] = useState<CategoryStats | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string>("");
     const [activeView, setActiveView] = useState<"home" | "recent" | "favorites" | "trash" | "category">("home");
     const [activeCategory, setActiveCategory] = useState<string>("");
 
     // Fetch data from backend
     const fetchData = async (path: string = "", mode?: string, category?: string) => {
         setLoading(true);
+        setError("");
         try {
             const params = new URLSearchParams();
             if (mode) params.append('mode', mode);
@@ -57,12 +59,18 @@ export default function Dashboard() {
             if (category) params.append('category', category);
 
             console.log('[Dashboard] Fetching:', `/files?${params.toString()}`);
+            console.log('[Dashboard] API Base URL:', api.defaults.baseURL);
+
             const response = await api.get(`/files?${params.toString()}`);
-            console.log('[Dashboard] Response:', response.data);
+            console.log('[Dashboard] Response status:', response.status);
+            console.log('[Dashboard] Response data:', response.data);
 
             const filesData = response.data.files || [];
             const disksData = response.data.stats?.allDisks || [];
             const categoriesData = response.data.stats?.categories || null;
+
+            console.log('[Dashboard] Parsed - Files:', filesData.length, 'Disks:', disksData.length);
+            console.log('[Dashboard] Category stats:', categoriesData);
 
             setFiles(filesData);
             setDisks(disksData);
@@ -71,8 +79,21 @@ export default function Dashboard() {
             if (!mode && !category) {
                 setCurrentPath(path);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("[Dashboard] Error fetching files:", err);
+            console.error("[Dashboard] Error details:", {
+                message: err.message,
+                response: err.response?.data,
+                status: err.response?.status
+            });
+
+            const errorMsg = err.response?.data?.error || err.message || "Erro ao carregar dados";
+            setError(errorMsg);
+
+            // Set empty data on error
+            setFiles([]);
+            setDisks([]);
+            setCategoryStats(null);
         } finally {
             setLoading(false);
         }
@@ -180,6 +201,25 @@ export default function Dashboard() {
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto p-6">
+                    {/* Error Message */}
+                    {error && (
+                        <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                            <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div>
+                                <h3 className="font-semibold text-red-900">Erro ao carregar dados</h3>
+                                <p className="text-sm text-red-700 mt-1">{error}</p>
+                                <button
+                                    onClick={() => fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined)}
+                                    className="mt-2 text-sm font-medium text-red-600 hover:text-red-700 underline"
+                                >
+                                    Tentar novamente
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <AnimatePresence mode="wait">
                         {loading ? (
                             <LoadingSkeleton key="loading" />
@@ -192,7 +232,7 @@ export default function Dashboard() {
                                 exit="exit"
                             >
                                 {/* HOME VIEW - Show Categories + Disks */}
-                                {activeView === "home" && currentPath === "" && (
+                                {activeView === "home" && !currentPath && (
                                     <div className="space-y-8">
                                         {/* Category Cards */}
                                         {categoryStats && (
@@ -208,26 +248,26 @@ export default function Dashboard() {
                                                 >
                                                     <CategoryCard
                                                         category="imagens"
-                                                        count={categoryStats.imagens.count}
-                                                        size={categoryStats.imagens.size}
+                                                        count={categoryStats.imagens?.count || 0}
+                                                        size={categoryStats.imagens?.size || 0}
                                                         onClick={() => handleCategoryChange("imagens")}
                                                     />
                                                     <CategoryCard
                                                         category="videos"
-                                                        count={categoryStats.videos.count}
-                                                        size={categoryStats.videos.size}
+                                                        count={categoryStats.videos?.count || 0}
+                                                        size={categoryStats.videos?.size || 0}
                                                         onClick={() => handleCategoryChange("videos")}
                                                     />
                                                     <CategoryCard
                                                         category="musicas"
-                                                        count={categoryStats.musicas.count}
-                                                        size={categoryStats.musicas.size}
+                                                        count={categoryStats.musicas?.count || 0}
+                                                        size={categoryStats.musicas?.size || 0}
                                                         onClick={() => handleCategoryChange("musicas")}
                                                     />
                                                     <CategoryCard
                                                         category="documentos"
-                                                        count={categoryStats.documentos.count}
-                                                        size={categoryStats.documentos.size}
+                                                        count={categoryStats.documentos?.count || 0}
+                                                        size={categoryStats.documentos?.size || 0}
                                                         onClick={() => handleCategoryChange("documentos")}
                                                     />
                                                 </motion.div>
@@ -291,7 +331,7 @@ export default function Dashboard() {
                                 )}
 
                                 {/* FOLDER VIEW */}
-                                {activeView === "home" && currentPath !== "" && (
+                                {activeView === "home" && currentPath && (
                                     <div>
                                         <h2 className="text-2xl font-bold text-gray-900 mb-6">
                                             Conteúdo
