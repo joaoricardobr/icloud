@@ -36,9 +36,25 @@ export default function CategoryCard({
             {/* Content */}
             <div className="relative z-10">
                 {/* Icon */}
-                <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${gradientColor} flex items-center justify-center shadow-lg mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon className="w-8 h-8 text-white" />
-                </div>
+                <motion.div
+                    animate={{
+                        y: [0, -4, 0],
+                        rotate: [0, 2, -2, 0]
+                    }}
+                    transition={{
+                        duration: 4,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                    }}
+                    className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${gradientColor} flex items-center justify-center shadow-lg mb-4 group-hover:shadow-xl transition-all duration-300 relative group-hover:scale-110`}
+                >
+                    <Icon className="w-8 h-8 text-white relative z-10" />
+                    <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        className="absolute inset-0 bg-white/20 rounded-2xl blur-lg"
+                    />
+                </motion.div>
 
                 {/* Title */}
                 <h3 className="text-xl font-bold text-gray-900 mb-2">{displayName}</h3>

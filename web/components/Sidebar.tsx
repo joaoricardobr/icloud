@@ -229,7 +229,7 @@ export default function Sidebar({
             initial={false}
             animate={{ width: isCollapsed ? 88 : 256 }}
             transition={{ type: "spring", damping: 20, stiffness: 150 }}
-            className="bg-white border-r border-gray-200 flex flex-col shadow-xl z-20 relative overflow-hidden"
+            className="hidden md:flex bg-white border-r border-gray-200 flex-col shadow-xl z-20 relative overflow-hidden"
         >
             {sidebarContent}
         </motion.aside>

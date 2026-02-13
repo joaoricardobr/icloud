@@ -129,15 +129,15 @@ export function getCategoryIcon(category: string) {
 export function getCategoryColor(category: string): string {
     switch (category) {
         case 'imagens':
-            return 'from-green-400 to-emerald-600';
+            return 'from-green-500 to-emerald-600 shadow-green-200';
         case 'videos':
-            return 'from-purple-400 to-indigo-600';
+            return 'from-purple-500 to-indigo-600 shadow-purple-200';
         case 'musicas':
-            return 'from-pink-400 to-rose-600';
+            return 'from-pink-500 to-rose-600 shadow-pink-200';
         case 'documentos':
-            return 'from-orange-400 to-red-600';
+            return 'from-orange-500 to-red-600 shadow-orange-200';
         default:
-            return 'from-gray-400 to-gray-600';
+            return 'from-gray-500 to-gray-600 shadow-gray-200';
     }
 }
 

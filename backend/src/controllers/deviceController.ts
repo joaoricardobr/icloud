@@ -4,6 +4,10 @@ import path from 'path';
 import { db } from '../config/firebase';
 import si from 'systeminformation';
 import os from 'os';
+import sharp from 'sharp';
+import ffmpeg from 'fluent-ffmpeg';
+import crypto from 'crypto';
+import archiver from 'archiver';
 
 const HOME_DIR = os.homedir();
 const TRASH_DIR = path.join(HOME_DIR, '.local', 'share', 'Trash', 'files');
@@ -486,6 +490,56 @@ export const getThumbnail = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Path is required' });
         }
 
+        const absolutePath = validatePath(filePath);
+        if (!fs.existsSync(absolutePath)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const ext = path.extname(absolutePath).toLowerCase();
+        const isImage = FILE_CATEGORIES.imagens.includes(ext);
+        const isVideo = FILE_CATEGORIES.videos.includes(ext);
+
+        if (!isImage && !isVideo) {
+            return res.json({ hasThumbnail: false });
+        }
+
+        const hash = crypto.createHash('md5').update(absolutePath).digest('hex');
+        const thumbDir = path.join(__dirname, '..', '..', 'thumbnails');
+        if (!fs.existsSync(thumbDir)) fs.mkdirSync(thumbDir, { recursive: true });
+
+        const thumbPath = path.join(thumbDir, `${hash}.jpg`);
+
+        // Use cache if exists
+        if (fs.existsSync(thumbPath)) {
+            return res.sendFile(thumbPath);
+        }
+
+        if (isImage) {
+            await sharp(absolutePath)
+                .resize(200, 200, { fit: 'cover' })
+                .toFormat('jpeg')
+                .toFile(thumbPath);
+            return res.sendFile(thumbPath);
+        }
+
+        if (isVideo) {
+            ffmpeg(absolutePath)
+                .on('end', () => {
+                    res.sendFile(thumbPath);
+                })
+                .on('error', (err) => {
+                    console.error('[FFMPEG Error]', err);
+                    res.json({ hasThumbnail: false });
+                })
+                .screenshots({
+                    timestamps: ['5%'],
+                    filename: path.basename(thumbPath),
+                    folder: path.dirname(thumbPath),
+                    size: '200x200'
+                });
+            return;
+        }
+
         res.json({ hasThumbnail: false });
     } catch (error: any) {
         console.error('[getThumbnail] Error:', error);
@@ -563,5 +617,51 @@ export const emptyTrash = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error('[emptyTrash] Error:', error);
         res.status(500).json({ error: error.message });
+    }
+};
+
+// Download multiple files as ZIP
+export const downloadZip = async (req: Request, res: Response) => {
+    try {
+        const { paths } = req.body; // Expecting array of paths
+
+        if (!paths || !Array.isArray(paths) || paths.length === 0) {
+            return res.status(400).json({ error: 'Paths array is required' });
+        }
+
+        const archive = archiver('zip', {
+            zlib: { level: 9 } // Maximum compression
+        });
+
+        const zipName = `backup_${new Date().getTime()}.zip`;
+        res.attachment(zipName);
+
+        archive.on('error', (err) => {
+            console.error('[Archiver Error]', err);
+            res.status(500).send({ error: err.message });
+        });
+
+        archive.pipe(res);
+
+        for (const targetPath of paths) {
+            const absolutePath = validatePath(targetPath);
+            if (fs.existsSync(absolutePath)) {
+                const stats = fs.statSync(absolutePath);
+                const name = path.basename(absolutePath);
+
+                if (stats.isDirectory()) {
+                    archive.directory(absolutePath, name);
+                } else {
+                    archive.file(absolutePath, { name });
+                }
+            }
+        }
+
+        await archive.finalize();
+    } catch (error: any) {
+        console.error('[downloadZip] Error:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: error.message });
+        }
     }
 };

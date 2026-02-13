@@ -17,6 +17,7 @@ import SettingsPage from "@/app/dashboard/settings/page";
 import { pageTransition, staggerContainer } from "@/lib/animations";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getCache, setCache } from "@/lib/db";
 
 interface FileItem {
     name: string;
@@ -65,10 +66,24 @@ export default function Dashboard() {
     const [isUploading, setIsUploading] = useState(false);
     const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
+    const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
 
     // Fetch data from backend
     const fetchData = async (path: string = "", mode?: string, category?: string) => {
-        setLoading(true);
+        const cacheKey = `data_${path || 'root'}_${mode || 'none'}_${category || 'none'}`;
+
+        // Try to load from cache first
+        const cachedData = await getCache(cacheKey);
+        if (cachedData) {
+            setFiles(cachedData.files || []);
+            setDisks(cachedData.stats?.allDisks || []);
+            setCategoryStats(cachedData.stats?.categories || null);
+            if (!mode && !category) setCurrentPath(path);
+        } else {
+            setLoading(true);
+        }
+
         setError("");
         try {
             const params = new URLSearchParams();
@@ -77,14 +92,18 @@ export default function Dashboard() {
             if (category) params.append('category', category);
 
             const response = await api.get(`/files?${params.toString()}`);
+            const data = response.data;
 
-            const filesData = response.data.files || [];
-            const disksData = response.data.stats?.allDisks || [];
-            const categoriesData = response.data.stats?.categories || null;
+            const filesData = data.files || [];
+            const disksData = data.stats?.allDisks || [];
+            const categoriesData = data.stats?.categories || null;
 
             setFiles(filesData);
             setDisks(disksData);
             setCategoryStats(categoriesData);
+
+            // Save to cache
+            setCache(cacheKey, data);
 
             if (!mode && !category) {
                 setCurrentPath(path);
@@ -93,9 +112,11 @@ export default function Dashboard() {
             console.error("[Dashboard] Error fetching files:", err);
             const errorMsg = err.response?.data?.error || err.message || "Erro ao carregar dados";
             setError(errorMsg);
-            setFiles([]);
-            setDisks([]);
-            setCategoryStats(null);
+            if (!cachedData) {
+                setFiles([]);
+                setDisks([]);
+                setCategoryStats(null);
+            }
         } finally {
             setLoading(false);
         }
@@ -142,6 +163,11 @@ export default function Dashboard() {
 
     // Handle file click
     const handleFileClick = (file: FileItem) => {
+        if (selectedPaths.length > 0) {
+            handleSelectionChange(file.path);
+            return;
+        }
+
         if (file.isDirectory) {
             navigateTo(file.path);
         } else {
@@ -151,7 +177,70 @@ export default function Dashboard() {
         }
     };
 
+    const handleSelectionChange = (path: string) => {
+        setSelectedPaths(prev =>
+            prev.includes(path)
+                ? prev.filter(p => p !== path)
+                : [...prev, path]
+        );
+    };
+
+    const handleSelectAll = (select: boolean) => {
+        if (select) {
+            setSelectedPaths(filteredFiles.map(f => f.path));
+        } else {
+            setSelectedPaths([]);
+        }
+    };
+
+    const handleDownloadZip = async () => {
+        if (selectedPaths.length === 0) return;
+
+        try {
+            const response = await api.post('/download-zip', { paths: selectedPaths }, {
+                responseType: 'blob'
+            });
+
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `clouddesk_backup_${Date.now()}.zip`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setSelectedPaths([]);
+        } catch (err: any) {
+            alert("Erro ao gerar ZIP: " + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleShare = async (file?: FileItem) => {
+        const pathsToShare = file ? [file.path] : selectedPaths;
+        if (pathsToShare.length === 0) return;
+
+        // For simplicity, we share the first item if multiple are selected, 
+        // or we could generate a temporary shared link if we had that feature.
+        // For now, we share a direct download link of the first selected item.
+        const baseUrl = window.location.origin;
+        const shareUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(pathsToShare[0])}`;
+
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            alert("Link de compartilhamento copiado para a área de transferência!");
+            if (!file) setSelectedPaths([]);
+        } catch (err) {
+            alert("Erro ao copiar link.");
+        }
+    };
+
     // File Operations
+    const handleUploadClick = (filesToUpload: FileList | null) => {
+        if (filesToUpload && filesToUpload.length > 0) {
+            setPendingFiles(filesToUpload);
+            setShowUploadModal(true);
+        }
+    };
+
     const handleUpload = async (filesToUpload: FileList | null, destinationOverride?: string) => {
         if (!filesToUpload || filesToUpload.length === 0) return;
 
@@ -395,8 +484,7 @@ export default function Dashboard() {
                 <TopBar
                     breadcrumbs={getBreadcrumbs()}
                     onNavigate={navigateTo}
-                    onUpload={handleUpload}
-                    onUploadClick={() => setShowUploadModal(true)}
+                    onUpload={handleUploadClick}
                     onNewFolderClick={() => setShowCreateFolderModal(true)}
                     onSearch={setSearchQuery}
                     onFilterChange={setFilterType}
@@ -405,6 +493,11 @@ export default function Dashboard() {
                     onViewModeChange={setViewMode}
                     currentFilter={filterType}
                     currentSort={sortBy}
+                    selectedCount={selectedPaths.length}
+                    onSelectAll={handleSelectAll}
+                    onDownloadZip={handleDownloadZip}
+                    onShareSelected={() => handleShare()}
+                    isAllSelected={selectedPaths.length > 0 && selectedPaths.length === filteredFiles.length}
                 />
 
                 {/* Content Area */}
@@ -580,7 +673,10 @@ export default function Dashboard() {
                                                             onFileClick={handleFileClick}
                                                             onToggleFavorite={handleToggleFavorite}
                                                             onDelete={handleDelete}
+                                                            onShare={handleShare}
                                                             viewMode={viewMode}
+                                                            selectedPaths={selectedPaths}
+                                                            onSelectionChange={handleSelectionChange}
                                                         />
                                                     </section>
                                                 )}
@@ -594,7 +690,10 @@ export default function Dashboard() {
                                                 onFileClick={handleFileClick}
                                                 onToggleFavorite={handleToggleFavorite}
                                                 onDelete={handleDelete}
+                                                onShare={handleShare}
                                                 viewMode={viewMode}
+                                                selectedPaths={selectedPaths}
+                                                onSelectionChange={handleSelectionChange}
                                             />
                                         )}
                                     </motion.div>
@@ -650,11 +749,15 @@ export default function Dashboard() {
             {/* Upload Modal */}
             <UploadModal
                 isOpen={showUploadModal}
-                onClose={() => setShowUploadModal(false)}
+                onClose={() => {
+                    setShowUploadModal(false);
+                    setPendingFiles(null);
+                }}
                 onUpload={handleUpload}
                 disks={disks}
                 currentPath={currentPath}
                 onOpenCreateFolder={() => setShowCreateFolderModal(true)}
+                initialFiles={pendingFiles}
             />
         </div>
     );

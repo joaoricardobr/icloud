@@ -12,7 +12,9 @@ import {
     ArrowDownAZ,
     ArrowDown10,
     Clock,
-    Star
+    Star,
+    Share2,
+    Archive
 } from "lucide-react";
 import { slideInFromTop } from "@/lib/animations";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,11 @@ interface TopBarProps {
     onViewModeChange?: (mode: "grid" | "list") => void;
     currentFilter?: string;
     currentSort?: string;
+    selectedCount?: number;
+    onSelectAll?: (select: boolean) => void;
+    onDownloadZip?: () => void;
+    onShareSelected?: () => void;
+    isAllSelected?: boolean;
 }
 
 export default function TopBar({
@@ -52,7 +59,12 @@ export default function TopBar({
     viewMode = "grid",
     onViewModeChange,
     currentFilter = "all",
-    currentSort = "name"
+    currentSort = "name",
+    selectedCount = 0,
+    onSelectAll,
+    onDownloadZip,
+    onShareSelected,
+    isAllSelected = false
 }: TopBarProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showFilters, setShowFilters] = useState(false);
@@ -81,29 +93,50 @@ export default function TopBar({
         >
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 {/* Breadcrumbs & Navigation */}
-                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 md:pb-0">
-                    {breadcrumbs.map((crumb, index) => (
-                        <div key={crumb.path + index} className="flex items-center gap-2 flex-shrink-0">
-                            {index > 0 && <ChevronRight size={14} className="text-slate-300" />}
-                            <motion.button
-                                onClick={() => onNavigate(crumb.path)}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                className={cn(
-                                    "px-3 py-1.5 rounded-xl transition-all duration-200 text-sm font-bold",
-                                    index === breadcrumbs.length - 1
-                                        ? "bg-slate-900 text-white shadow-lg shadow-slate-200"
-                                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                                )}
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 md:pb-0 pl-20 md:pl-0">
+                    {selectedCount > 0 ? (
+                        <div className="flex items-center gap-4 py-2">
+                            <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-2xl font-black text-sm border border-blue-100 shadow-sm">
+                                <motion.div
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px]"
+                                >
+                                    {selectedCount}
+                                </motion.div>
+                                {selectedCount === 1 ? 'Item selecionado' : 'Itens selecionados'}
+                            </div>
+                            <button
+                                onClick={() => onSelectAll?.(!isAllSelected)}
+                                className="text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors"
                             >
-                                {crumb.name}
-                            </motion.button>
+                                {isAllSelected ? "Desmarcar todos" : "Selecionar tudo"}
+                            </button>
                         </div>
-                    ))}
+                    ) : (
+                        breadcrumbs.map((crumb, index) => (
+                            <div key={crumb.path + index} className="flex items-center gap-2 flex-shrink-0">
+                                {index > 0 && <ChevronRight size={14} className="text-slate-300" />}
+                                <motion.button
+                                    onClick={() => onNavigate(crumb.path)}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    className={cn(
+                                        "px-4 py-2 rounded-2xl transition-all duration-200 text-sm font-bold",
+                                        index === breadcrumbs.length - 1
+                                            ? "bg-slate-900 text-white shadow-lg shadow-slate-400"
+                                            : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                    )}
+                                >
+                                    {crumb.name}
+                                </motion.button>
+                            </div>
+                        ))
+                    )}
                 </div>
 
                 {/* Actions Area */}
-                <div className="flex items-center gap-2 md:gap-4">
+                <div className="flex items-center flex-wrap gap-2 md:gap-4">
                     {/* Search Bar */}
                     <div className="relative flex-1 md:flex-none">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={16} />
@@ -120,7 +153,7 @@ export default function TopBar({
                         <button
                             onClick={() => setShowFilters(!showFilters)}
                             className={cn(
-                                "p-2 rounded-2xl border transition-all flex items-center gap-2 font-bold text-sm",
+                                "p-2.5 rounded-2xl border transition-all flex items-center gap-2 font-bold text-sm",
                                 showFilters || currentFilter !== "all"
                                     ? "bg-blue-50 border-blue-200 text-blue-600"
                                     : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -208,17 +241,41 @@ export default function TopBar({
                             </button>
                         </div>
                     )}
+                </div>
 
+                {selectedCount > 0 ? (
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300 ml-auto">
+                        <motion.button
+                            onClick={onShareSelected}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            className="bg-white border border-slate-200 text-blue-600 p-3.5 md:px-5 md:py-2.5 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-blue-50 transition-all shadow-sm"
+                        >
+                            <Share2 size={20} />
+                            <span className="hidden lg:inline">Compartilhar</span>
+                        </motion.button>
+
+                        <motion.button
+                            onClick={onDownloadZip}
+                            whileHover={{ scale: 1.02, y: -1 }}
+                            whileTap={{ scale: 0.98 }}
+                            className="bg-blue-600 text-white p-3.5 md:px-6 md:py-2.5 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-blue-700 transition-all shadow-xl shadow-blue-200"
+                        >
+                            <Archive size={20} />
+                            <span className="hidden lg:inline">Baixar ZIP</span>
+                        </motion.button>
+                    </div>
+                ) : (
                     <div className="flex items-center gap-2 ml-auto">
                         {(onNewFolder || onNewFolderClick) && (
                             <motion.button
                                 onClick={onNewFolderClick || onNewFolder}
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
-                                className="bg-white border border-slate-200 text-slate-700 p-2 md:px-4 md:py-2 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
+                                className="bg-white border border-slate-200 text-slate-700 p-3.5 md:px-4 md:py-2 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm min-w-[48px] justify-center"
                                 title="Nova Pasta"
                             >
-                                <FolderPlus size={18} className="text-blue-500" />
+                                <FolderPlus size={20} className="text-blue-500" />
                                 <span className="hidden lg:inline">Nova Pasta</span>
                             </motion.button>
                         )}
@@ -234,26 +291,25 @@ export default function TopBar({
                                         onChange={(e) => {
                                             if (e.target.files) {
                                                 onUpload(e.target.files);
-                                                // Fix: Clear value so it can be opened again with same file
                                                 e.target.value = "";
                                             }
                                         }}
                                     />
                                 )}
                                 <motion.button
-                                    onClick={onUploadClick || (() => fileInputRef.current?.click())}
+                                    onClick={() => fileInputRef.current?.click()}
                                     whileHover={{ scale: 1.02, y: -1 }}
                                     whileTap={{ scale: 0.98 }}
-                                    className="bg-blue-600 text-white p-2 md:px-5 md:py-2.5 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-blue-700 transition-all shadow-xl shadow-blue-200"
+                                    className="bg-blue-600 text-white p-3.5 md:px-5 md:py-2.5 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 min-w-[48px] justify-center"
                                     title="Fazer Upload"
                                 >
-                                    <Upload size={18} />
+                                    <Upload size={20} />
                                     <span className="hidden lg:inline">Upload</span>
                                 </motion.button>
                             </>
                         )}
                     </div>
-                </div>
+                )}
             </div>
         </motion.header>
     );

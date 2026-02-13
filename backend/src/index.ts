@@ -48,48 +48,23 @@ const PORT = process.env.PORT || 3001;
 // Import Routes
 import deviceRoutes from './routes/deviceRoutes';
 
-// Middleware
-app.use((req, res, next) => {
-    console.log('Incoming request headers:', req.headers);
-    next();
-});
-
-app.use(helmet({
-    crossOriginResourcePolicy: false,
-    crossOriginEmbedderPolicy: false
-}));
-
-const allowedOrigins = [
-    'https://icloudbr.vercel.app',
-    'https://clouddesk-iota.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:3001'
-];
-
+// 1. CORS Middleware (Must be BEFORE other middleware)
 app.use(cors({
-    origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl)
-        if (!origin) return callback(null, true);
-
-        const domainAllowed = allowedOrigins.indexOf(origin) !== -1 || origin.includes('.trycloudflare.com');
-
-        if (domainAllowed) {
-            callback(null, true);
-        } else {
-            console.warn(`CORS blocked for origin: ${origin}. Path: ${origin}`);
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+    origin: true, // Echoes back the requesting origin
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'baggage', 'sentry-trace'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
     credentials: true,
     optionsSuccessStatus: 200
 }));
 
 app.use(express.json());
 
-// Request Logging
+// 2. Logging and other middleware
 app.use((req, res, next) => {
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
     next();
 });

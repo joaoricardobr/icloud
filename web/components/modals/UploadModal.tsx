@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Upload, Computer, HardDrive, File, Folder, Check, AlertCircle, Plus } from "lucide-react";
 import { modalBackdrop, modalContent } from "@/lib/animations";
 import FolderPicker from "../FolderPicker";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
+import { useEffect } from "react";
 
 interface UploadModalProps {
     isOpen: boolean;
@@ -14,6 +15,7 @@ interface UploadModalProps {
     disks: any[];
     currentPath: string;
     onOpenCreateFolder: () => void;
+    initialFiles?: FileList | null;
 }
 
 export default function UploadModal({
@@ -22,50 +24,59 @@ export default function UploadModal({
     onUpload,
     disks,
     currentPath,
-    onOpenCreateFolder
+    onOpenCreateFolder,
+    initialFiles
 }: UploadModalProps) {
     const [source, setSource] = useState<"local" | "disk">("local");
     const [type, setType] = useState<"files" | "folder">("files");
     const [destination, setDestination] = useState(currentPath);
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState("");
+    const [filesToUpload, setFilesToUpload] = useState<File[]>(
+        initialFiles ? Array.from(initialFiles) : []
+    );
+
+    // Sync files when modal opens with new selection
+    useEffect(() => {
+        if (initialFiles) {
+            setFilesToUpload(Array.from(initialFiles));
+        }
+    }, [initialFiles]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const folderInputRef = useRef<HTMLInputElement>(null);
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
-
-        setError("");
-        setIsUploading(true);
-        try {
-            await onUpload(files, destination);
-            onClose();
-        } catch (err: any) {
-            setError(err.message || "Erro no upload");
-        } finally {
-            setIsUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-            if (folderInputRef.current) folderInputRef.current.value = "";
-        }
+        setFilesToUpload(Array.from(files));
     };
 
-    const triggerUpload = () => {
+    const triggerUpload = async () => {
         if (!destination) {
             setError("Por favor, selecione o destino do upload");
             return;
         }
 
-        if (source === "disk") {
-            setError("Upload de Disco para Disco ainda será implementado (Ref: Importar)");
+        if (filesToUpload.length === 0) {
+            setError("Nenhum arquivo selecionado");
             return;
         }
 
-        if (type === "folder") {
-            folderInputRef.current?.click();
-        } else {
-            fileInputRef.current?.click();
+        setError("");
+        setIsUploading(true);
+        try {
+            // Convert back to FileList-like object or just pass files
+            const formData = new FormData();
+            // Since onUpload in Dashboard uses FileList, I'll modify Dashboard or adjust here
+            // But handleUpload in Dashboard expects FileList | null
+            // I'll update onUpload to accept File[]
+            await onUpload(filesToUpload as any, destination);
+            onClose();
+        } catch (err: any) {
+            setError(err.message || "Erro no upload");
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -128,59 +139,49 @@ export default function UploadModal({
 
                         {/* Body */}
                         <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 overflow-y-auto max-h-[60vh] scrollbar-hide">
-                            <div className="space-y-8">
-                                {/* Source Selection */}
+                            <div className="space-y-6">
                                 <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Origem</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            onClick={() => setSource("local")}
-                                            className={cn(
-                                                "flex flex-col items-center gap-3 p-5 rounded-3xl border-2 transition-all group",
-                                                source === "local" ? "border-blue-600 bg-blue-50/50 text-blue-600" : "border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200"
-                                            )}
-                                        >
-                                            <Computer size={24} className={cn(source === "local" ? "text-blue-600" : "group-hover:text-slate-600")} />
-                                            <span className="text-sm font-black">LOCAL</span>
-                                        </button>
-                                        <button
-                                            onClick={() => setSource("disk")}
-                                            className={cn(
-                                                "flex flex-col items-center gap-3 p-5 rounded-3xl border-2 transition-all group",
-                                                source === "disk" ? "border-blue-600 bg-blue-50/50 text-blue-600" : "border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200"
-                                            )}
-                                        >
-                                            <HardDrive size={24} className={cn(source === "disk" ? "text-blue-600" : "group-hover:text-slate-600")} />
-                                            <span className="text-sm font-black">DISCO</span>
-                                        </button>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Arquivos Selecionados</label>
+                                    <div className="bg-slate-50 rounded-3xl border border-slate-100 p-4 max-h-[280px] overflow-y-auto space-y-2">
+                                        {filesToUpload.length > 0 ? (
+                                            filesToUpload.map((f, i) => (
+                                                <div key={i} className="flex items-center gap-3 bg-white p-3 rounded-2xl shadow-sm border border-slate-50">
+                                                    <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                                                        <File size={20} />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs font-bold text-slate-800 truncate">{f.name}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold">{formatBytes(f.size)}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setFilesToUpload(prev => prev.filter((_, idx) => idx !== i))}
+                                                        className="p-2 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-lg transition-colors"
+                                                    >
+                                                        <X size={16} />
+                                                    </button>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-3">
+                                                <Upload size={32} className="opacity-20" />
+                                                <p className="text-xs font-bold">Nenhum arquivo selecionado</p>
+                                                <button
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    className="text-[10px] bg-blue-600 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest"
+                                                >
+                                                    Selecionar
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-
-                                {/* Type Selection */}
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">O que enviar?</label>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    {filesToUpload.length > 0 && (
                                         <button
-                                            onClick={() => setType("files")}
-                                            className={cn(
-                                                "flex items-center justify-center gap-3 p-4 rounded-2xl border-2 transition-all",
-                                                type === "files" ? "border-slate-900 bg-slate-900 text-white shadow-lg" : "border-slate-100 bg-white text-slate-500 hover:bg-slate-50"
-                                            )}
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-blue-400 hover:text-blue-500 transition-all"
                                         >
-                                            <File size={18} />
-                                            <span className="text-xs font-bold">ARQUIVOS</span>
+                                            + Adicionar mais
                                         </button>
-                                        <button
-                                            onClick={() => setType("folder")}
-                                            className={cn(
-                                                "flex items-center justify-center gap-3 p-4 rounded-2xl border-2 transition-all",
-                                                type === "folder" ? "border-slate-900 bg-slate-900 text-white shadow-lg" : "border-slate-100 bg-white text-slate-500 hover:bg-slate-50"
-                                            )}
-                                        >
-                                            <Folder size={18} />
-                                            <span className="text-xs font-bold">PASTA</span>
-                                        </button>
-                                    </div>
+                                    )}
                                 </div>
 
                                 <div className="p-6 bg-blue-50 rounded-[32px] border border-blue-100 space-y-4">
@@ -189,23 +190,22 @@ export default function UploadModal({
                                             <Plus size={20} />
                                         </div>
                                         <div>
-                                            <h4 className="text-sm font-black text-slate-800 tracking-tight">Criar uma pasta?</h4>
-                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Crie um destino novo antes do upload</p>
+                                            <h4 className="text-sm font-black text-slate-800 tracking-tight">Nova pasta?</h4>
+                                            <button
+                                                onClick={onOpenCreateFolder}
+                                                className="text-[10px] text-blue-600 font-black uppercase tracking-widest hover:underline"
+                                            >
+                                                Criar agora
+                                            </button>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={onOpenCreateFolder}
-                                        className="w-full py-3 bg-white hover:bg-blue-600 hover:text-white text-blue-600 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
-                                    >
-                                        Nova Pasta de Destino
-                                    </button>
                                 </div>
                             </div>
 
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between px-1">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Local de Destino</label>
-                                    <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md truncate max-w-[150px]">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Onde salvar?</label>
+                                    <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md truncate max-w-[150px]" title={destination}>
                                         {destination || "Selecione..."}
                                     </div>
                                 </div>
