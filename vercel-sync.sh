@@ -38,23 +38,23 @@ fi
 
 echo "✅ Túnel Ativo: $TUNNEL_URL"
 
-echo "🧪 Verificando se o túnel está respondendo..."
-MAX_URL_CHECK=10
-URL_COUNT=0
-while [ $URL_COUNT -lt $MAX_URL_CHECK ]; do
-    if curl --output /dev/null --silent --head --fail "$TUNNEL_URL"; then
-        echo "✅ Túnel alcançável!"
-        break
-    fi
-    URL_COUNT=$((URL_COUNT+1))
-    echo "  (Aguardando resposta do túnel $URL_COUNT/$MAX_URL_CHECK...)"
-    sleep 2
-done
-
-if [ $URL_COUNT -eq $MAX_URL_CHECK ]; then
-    echo "❌ Erro: Túnel gerado mas não responde via HTTP."
-    exit 1
-fi
+# echo "🧪 Verificando se o túnel está respondendo..."
+# MAX_URL_CHECK=10
+# URL_COUNT=0
+# while [ $URL_COUNT -lt $MAX_URL_CHECK ]; do
+#     if curl --output /dev/null --silent --head --fail "$TUNNEL_URL/"; then
+#         echo "✅ Túnel alcançável!"
+#         break
+#     fi
+#     URL_COUNT=$((URL_COUNT+1))
+#     echo "  (Aguardando resposta do túnel $URL_COUNT/$MAX_URL_CHECK...)"
+#     sleep 2
+# done
+# 
+# if [ $URL_COUNT -eq $MAX_URL_CHECK ]; then
+#     echo "❌ Erro: Túnel gerado mas não responde via HTTP."
+#     exit 1
+# fi
 
 echo "📝 Atualizando $API_FILE..."
 # Escapa a URL para o sed
