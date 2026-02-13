@@ -386,3 +386,76 @@ h6 {
     font-size: 1.25rem;
   }
 }
+
+/* ============================================
+   RESPONSIVE DESIGN - Mobile First
+   ============================================ */
+
+/* Mobile Phones (< 640px) */
+@media (max-width: 639px) {
+  body {
+    font-size: 14px;
+  }
+
+  /* Grid adjustments for mobile */
+  .grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+  }
+
+  /* Cards smaller padding on mobile */
+  .card {
+    padding: 1rem !important;
+  }
+
+  /* Touch-friendly tap targets (min 44px) */
+  button,
+  a[role="button"],
+  input,
+  select {
+    min-height: 44px;
+  }
+
+  /* Spacing adjustments */
+  .p-6 {
+    padding: 1rem !important;
+  }
+
+  .gap-6 {
+    gap: 1rem !important;
+  }
+
+  .space-y-8 > * + * {
+    margin-top: 1.5rem !important;
+  }
+
+  /* Flex to column on mobile */
+  .flex-row {
+    flex-direction: column !important;
+  }
+}
+
+/* Tablets (640px - 1023px) */
+@media (min-width: 640px) and (max-width: 1023px) {
+  /* 2 columns for tablets */
+  .grid-cols-4,
+  .md\:grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .grid-cols-3,
+  .md\:grid-cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Responsive utilities */
+.text-center-mobile {
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .text-center-mobile {
+    text-align: left;
+  }
+}
+
