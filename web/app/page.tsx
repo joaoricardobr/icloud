@@ -15,11 +15,14 @@ export default function Home() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser: User | null) => {
       setUser(currentUser);
       setLoading(false);
+      if (currentUser) {
+        window.location.href = "/dashboard";
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  if (loading) {
+  if (loading || user) {
     return (
       <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0F1113] flex items-center justify-center">
         <RefreshCw className="w-8 h-8 text-blue-500 animate-spin opacity-20" />
@@ -27,5 +30,5 @@ export default function Home() {
     );
   }
 
-  return user ? <Dashboard /> : <Login />;
+  return <Login />;
 }

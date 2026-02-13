@@ -7,26 +7,37 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const dotenv_1 = __importDefault(require("dotenv"));
-const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
 // Import Routes
 const deviceRoutes_1 = __importDefault(require("./routes/deviceRoutes"));
 // Middleware
-app.use((0, helmet_1.default)());
+app.use((0, helmet_1.default)({
+    crossOriginResourcePolicy: false,
+    crossOriginEmbedderPolicy: false
+}));
+const allowedOrigins = [
+    'https://icloudbr.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:3001'
+];
 app.use((0, cors_1.default)({
-    origin: process.env.FRONTEND_URL || '*', // Restrict in production
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    origin: true, // Allow all origins
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['*'], // Allow all headers
+    credentials: true,
+    optionsSuccessStatus: 200
 }));
 app.use(express_1.default.json());
-// Rate Limiting
-const limiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100 // limit each IP to 100 requests per windowMs
+// Request Logging
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Content-Length, X-Requested-With");
+    next();
 });
-app.use(limiter);
 // Routes
 app.use('/api/cloud', deviceRoutes_1.default); // Professional endpoint naming
 // Basic Health Check

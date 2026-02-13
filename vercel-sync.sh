@@ -1,30 +1,45 @@
 #!/bin/bash
 
-# CloudDesk Smart Vercel Sync 🚀
-# Este script sincroniza automaticamente o túnel local com o site na Vercel.
+# CloudDesk Ultra Sync 🚀
+# Este script automatiza TUDO: Inicia túnel, extrai URL, atualiza código e faz deploy.
 
-echo "🔍 Detectando novo túnel Cloudflare..."
-# Extrai o link mais recente dos logs do PM2
-TUNNEL_URL=$(pm2 logs clouddesk-tunnel --lines 100 --no-daemon | grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' | tail -n 1)
+PROJECT_ROOT="/home/ricardo/Transferências/CloudLocal2026"
+CLOUDFLARED_BIN="$PROJECT_ROOT/cloudflared"
+API_FILE="$PROJECT_ROOT/web/lib/api.ts"
+
+echo "🧹 Limpando processos antigos..."
+pm2 delete clouddesk-tunnel 2>/dev/null
+
+echo "🔍 Iniciando novo túnel Cloudflare e extraindo URL..."
+# Inicia cloudflared, captura a primeira linha que contém o URL e encerra.
+TUNNEL_URL=$(./cloudflared tunnel --url http://localhost:3001 --protocol http2 2>&1 | grep -m 1 "https://.*\.trycloudflare\.com" | grep -o "https://.*\.trycloudflare\.com")
 
 if [ -z "$TUNNEL_URL" ]; then
-    echo "❌ Erro: Não foi possível detectar o URL do túnel. Verifique se o PM2 está rodando."
+    echo "❌ Erro: Não foi possível obter o URL do túnel."
     exit 1
 fi
 
-echo "✅ Túnel encontrado: $TUNNEL_URL"
+echo "✅ Novo Túnel: $TUNNEL_URL"
 
-# 🛠️ Atualiza o arquivo web/lib/api.ts com o novo endereço
+# Reinicia no PM2 para manter rodando em background
+echo "🔋 Mantendo túnel ativo no PM2..."
+pm2 start "./cloudflared tunnel --url http://localhost:3001 --protocol http2" --name clouddesk-tunnel
+
+echo "📝 Atualizando $API_FILE..."
 # Escapa a URL para o sed
 ESCAPED_URL=$(echo "$TUNNEL_URL/api/cloud" | sed 's/\//\\\//g')
+sed -i "s/baseURL: \".*\"/baseURL: \"$ESCAPED_URL\"/" "$API_FILE"
 
-echo "📝 Atualizando código-fonte..."
-sed -i "s/baseURL: process.env.NEXT_PUBLIC_API_URL || \".*\"/baseURL: process.env.NEXT_PUBLIC_API_URL || \"$ESCAPED_URL\"/" web/lib/api.ts
+echo "🔥 Atualizando Firestore com a nova URL..."
+cd "$PROJECT_ROOT/backend"
+# Use plain node for the JS script to be more robust
+node src/scripts/update-api-url.js "$TUNNEL_URL/api/cloud"
 
-# 📤 Faz o push para o GitHub para disparar o deploy na Vercel
-echo "📦 Enviando para o GitHub..."
-git add web/lib/api.ts
-git commit -m "🔄 Auto-Sync: Atualizando túnel para $TUNNEL_URL"
+echo "📦 Fazendo push para o GitHub (Disparando Vercel)..."
+cd "$PROJECT_ROOT"
+git add "$API_FILE"
+git commit -m "🌐 Auto-Sync: $TUNNEL_URL"
 git push origin main
 
-echo "🚀 Sincronização concluída! A Vercel começará o deploy em alguns segundos."
+echo "🚀 TUDO PRONTO! O site será atualizado na Vercel em instantes."
+echo "🔗 URL da API: $TUNNEL_URL/api/cloud"

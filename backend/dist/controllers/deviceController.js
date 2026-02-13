@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getThumbnail = exports.createFolder = exports.deleteFile = exports.uploadFile = exports.downloadFile = exports.getFiles = void 0;
+exports.emptyTrash = exports.permanentDelete = exports.getThumbnail = exports.createFolder = exports.deleteFile = exports.uploadFile = exports.downloadFile = exports.getFiles = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const firebase_1 = require("../config/firebase");
@@ -470,3 +470,59 @@ const getThumbnail = async (req, res) => {
     }
 };
 exports.getThumbnail = getThumbnail;
+// Permanently delete file or folder (bypass trash)
+const permanentDelete = async (req, res) => {
+    try {
+        const filePath = req.body.path;
+        if (!filePath) {
+            return res.status(400).json({ error: 'Path is required' });
+        }
+        const absolutePath = validatePath(filePath);
+        if (!fs_1.default.existsSync(absolutePath)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        const stats = fs_1.default.statSync(absolutePath);
+        if (stats.isDirectory()) {
+            fs_1.default.rmSync(absolutePath, { recursive: true, force: true });
+        }
+        else {
+            fs_1.default.unlinkSync(absolutePath);
+        }
+        res.json({ message: 'Item permanently deleted' });
+    }
+    catch (error) {
+        console.error('[permanentDelete] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+exports.permanentDelete = permanentDelete;
+// Empty Trash folder
+const emptyTrash = async (req, res) => {
+    try {
+        if (!fs_1.default.existsSync(TRASH_DIR)) {
+            return res.json({ message: 'Trash is already empty' });
+        }
+        const items = fs_1.default.readdirSync(TRASH_DIR);
+        for (const item of items) {
+            const itemPath = path_1.default.join(TRASH_DIR, item);
+            try {
+                const stats = fs_1.default.statSync(itemPath);
+                if (stats.isDirectory()) {
+                    fs_1.default.rmSync(itemPath, { recursive: true, force: true });
+                }
+                else {
+                    fs_1.default.unlinkSync(itemPath);
+                }
+            }
+            catch (e) {
+                console.error(`[emptyTrash] Error deleting ${itemPath}:`, e);
+            }
+        }
+        res.json({ message: 'Trash emptied successfully' });
+    }
+    catch (error) {
+        console.error('[emptyTrash] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+exports.emptyTrash = emptyTrash;

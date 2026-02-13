@@ -41,6 +41,8 @@ router.get('/thumbnail', deviceController_1.getThumbnail);
 router.post('/upload', upload.array('files'), deviceController_1.uploadFile);
 router.post('/create-folder', deviceController_1.createFolder);
 router.delete('/delete', deviceController_1.deleteFile);
+router.post('/permanent-delete', deviceController_1.permanentDelete);
+router.post('/empty-trash', deviceController_1.emptyTrash);
 // Settings & Users
 router.get('/settings', settingsController_1.getSettings);
 router.post('/settings', settingsController_1.updateSettings);

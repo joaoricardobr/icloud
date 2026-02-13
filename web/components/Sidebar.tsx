@@ -204,7 +204,7 @@ export default function Sidebar({
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 onClick={() => setIsMobileOpen(false)}
-                                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
+                                className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-40 md:hidden"
                             />
                             <motion.aside
                                 initial={{ x: "-100%" }}

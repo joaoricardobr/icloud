@@ -14,6 +14,7 @@ import FilePreview from "./FilePreview";
 import CreateFolderModal from "./modals/CreateFolderModal";
 import UploadModal from "./modals/UploadModal";
 import { pageTransition, staggerContainer } from "@/lib/animations";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FileItem {
@@ -192,6 +193,17 @@ export default function Dashboard() {
     };
 
     const handleDelete = async (file: FileItem) => {
+        if (activeView === "trash") {
+            if (!confirm(`Tem certeza que deseja excluir "${file.name}" PERMANENTEMENTE? Esta ação não pode ser desfeita.`)) return;
+            try {
+                await api.post("/permanent-delete", { path: file.path });
+                fetchData("", "trash");
+            } catch (err: any) {
+                alert("Erro ao excluir permanentemente: " + (err.response?.data?.error || err.message));
+            }
+            return;
+        }
+
         if (!confirm(`Tem certeza que deseja mover "${file.name}" para a lixeira?`)) return;
 
         try {
@@ -199,6 +211,17 @@ export default function Dashboard() {
             fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
         } catch (err: any) {
             alert("Erro ao excluir: " + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleEmptyTrash = async () => {
+        if (!confirm("Tem certeza que deseja ESVAZIAR A LIXEIRA? Todos os itens serão apagados permanentemente.")) return;
+
+        try {
+            await api.post("/empty-trash");
+            fetchData("", "trash");
+        } catch (err: any) {
+            alert("Erro ao esvaziar lixeira: " + (err.response?.data?.error || err.message));
         }
     };
 
@@ -410,6 +433,15 @@ export default function Dashboard() {
                             </h2>
 
                             <div className="flex items-center gap-2 bg-white p-1 rounded-2xl shadow-sm border border-slate-100">
+                                {activeView === "trash" && files.length > 0 && (
+                                    <button
+                                        onClick={handleEmptyTrash}
+                                        className="px-4 py-1.5 rounded-xl text-sm font-bold bg-red-50 text-red-600 hover:bg-red-100 transition-all mr-2 flex items-center gap-2"
+                                    >
+                                        <Trash2 size={16} />
+                                        Esvaziar Lixeira
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setFilterType("all")}
                                     className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "all" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}

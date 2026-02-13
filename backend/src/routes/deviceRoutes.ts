@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getFiles, uploadFile, downloadFile, deleteFile, createFolder, getThumbnail } from '../controllers/deviceController';
+import { getFiles, uploadFile, downloadFile, deleteFile, createFolder, getThumbnail, permanentDelete, emptyTrash } from '../controllers/deviceController';
 import { getSettings, updateSettings, createUser, toggleFavorite } from '../controllers/settingsController';
 import { verifyToken, verifyAdmin } from '../middleware/authMiddleware';
 import multer from 'multer';
@@ -44,6 +44,8 @@ router.get('/thumbnail', getThumbnail);
 router.post('/upload', upload.array('files'), uploadFile);
 router.post('/create-folder', createFolder);
 router.delete('/delete', deleteFile);
+router.post('/permanent-delete', permanentDelete);
+router.post('/empty-trash', emptyTrash);
 
 // Settings & Users
 router.get('/settings', getSettings);

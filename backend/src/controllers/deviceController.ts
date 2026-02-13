@@ -492,3 +492,60 @@ export const getThumbnail = async (req: Request, res: Response) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+// Permanently delete file or folder (bypass trash)
+export const permanentDelete = async (req: Request, res: Response) => {
+    try {
+        const filePath = req.body.path as string;
+        if (!filePath) {
+            return res.status(400).json({ error: 'Path is required' });
+        }
+
+        const absolutePath = validatePath(filePath);
+
+        if (!fs.existsSync(absolutePath)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const stats = fs.statSync(absolutePath);
+        if (stats.isDirectory()) {
+            fs.rmSync(absolutePath, { recursive: true, force: true });
+        } else {
+            fs.unlinkSync(absolutePath);
+        }
+
+        res.json({ message: 'Item permanently deleted' });
+    } catch (error: any) {
+        console.error('[permanentDelete] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Empty Trash folder
+export const emptyTrash = async (req: Request, res: Response) => {
+    try {
+        if (!fs.existsSync(TRASH_DIR)) {
+            return res.json({ message: 'Trash is already empty' });
+        }
+
+        const items = fs.readdirSync(TRASH_DIR);
+        for (const item of items) {
+            const itemPath = path.join(TRASH_DIR, item);
+            try {
+                const stats = fs.statSync(itemPath);
+                if (stats.isDirectory()) {
+                    fs.rmSync(itemPath, { recursive: true, force: true });
+                } else {
+                    fs.unlinkSync(itemPath);
+                }
+            } catch (e) {
+                console.error(`[emptyTrash] Error deleting ${itemPath}:`, e);
+            }
+        }
+
+        res.json({ message: 'Trash emptied successfully' });
+    } catch (error: any) {
+        console.error('[emptyTrash] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
