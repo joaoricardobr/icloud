@@ -36,6 +36,7 @@ interface Disk {
     size: number;
     used: number;
     percent: number;
+    temperature?: number | null;
     type?: "system" | "external";
 }
 
@@ -475,11 +476,31 @@ export default function Dashboard() {
         window.location.href = "/";
     };
 
-    // Initial load
+    // Initial load and SSE Connection
     useEffect(() => {
         fetchData();
 
-        // Automatic refresh every 5 minutes if window is focused
+        // Connect to SSE for automatic disk detection
+        const eventSource = new EventSource(`${api.defaults.baseURL}/events`);
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'disk_change') {
+                    console.log("💿 Disk change detected via SSE, refreshing...");
+                    handleRefresh();
+                }
+            } catch (err) {
+                console.error("SSE Error parsing data:", err);
+            }
+        };
+
+        eventSource.onerror = (err) => {
+            console.error("SSE Connection failed:", err);
+            eventSource.close();
+        };
+
+        // Automatic refresh every 5 minutes if window is focused (fallback)
         const interval = setInterval(() => {
             if (document.visibilityState === 'visible') {
                 console.log("🔄 Auto-refreshing connectivity...");
@@ -497,6 +518,7 @@ export default function Dashboard() {
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
+            eventSource.close();
             clearInterval(interval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
@@ -688,6 +710,7 @@ export default function Dashboard() {
                                                                     size={disk.size}
                                                                     used={disk.used}
                                                                     percent={disk.percent}
+                                                                    temperature={disk.temperature}
                                                                     type={disk.type}
                                                                     onClick={() => navigateTo(disk.mount)}
                                                                 />

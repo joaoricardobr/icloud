@@ -39,7 +39,11 @@ export default function UploadModal({
     // Sync files when modal opens with new selection
     useEffect(() => {
         if (initialFiles) {
-            setFilesToUpload(Array.from(initialFiles));
+            setFilesToUpload(prev => {
+                const newFiles = Array.from(initialFiles);
+                const uniqueNewFiles = newFiles.filter(nf => !prev.some(pf => pf.name === nf.name && pf.size === nf.size));
+                return [...prev, ...uniqueNewFiles];
+            });
         }
     }, [initialFiles]);
 
@@ -49,7 +53,15 @@ export default function UploadModal({
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
-        setFilesToUpload(Array.from(files));
+
+        setFilesToUpload(prev => {
+            const newFiles = Array.from(files);
+            const uniqueNewFiles = newFiles.filter(nf => !prev.some(pf => pf.name === nf.name && pf.size === nf.size));
+            return [...prev, ...uniqueNewFiles];
+        });
+
+        // Reset input so same file can be selected again if needed
+        e.target.value = "";
     };
 
     const triggerUpload = async () => {

@@ -36,8 +36,8 @@ const validatePath = (targetPath: string): string => {
 };
 
 // Scan directory for files by category (limited depth for performance)
-const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_CATEGORIES, maxFiles = 100, depth = 0): any[] => {
-    if (depth > 3 || !fs.existsSync(dirPath)) return [];
+const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_CATEGORIES, maxFiles = 10, depth = 0): any[] => {
+    if (depth > 2 || maxFiles <= 0 || !fs.existsSync(dirPath)) return [];
 
     const results: any[] = [];
     const extensions = FILE_CATEGORIES[category];
@@ -107,32 +107,22 @@ const getCategoryStats = async (disks: any[]) => {
     ];
 
     for (const disk of disks) {
-        // Scan home directory if it's the system disk
-        if (disk.mount === '/') {
-            for (const folder of commonFolders) {
-                const folderPath = path.join(HOME_DIR, folder);
+        const isSystem = disk.mount === '/';
+
+        for (const folder of commonFolders) {
+            const folderPath = isSystem ? path.join(HOME_DIR, folder) : path.join(disk.mount, folder);
+
+            try {
                 if (fs.existsSync(folderPath)) {
-                    // Scan for each category
                     for (const category of Object.keys(FILE_CATEGORIES) as (keyof typeof FILE_CATEGORIES)[]) {
-                        const files = scanDirectoryForCategory(folderPath, category, 20);
+                        const files = scanDirectoryForCategory(folderPath, category, 10);
                         stats[category].files.push(...files);
                         stats[category].count += files.length;
                         stats[category].size += files.reduce((sum, f) => sum + f.size, 0);
                     }
                 }
-            }
-        } else {
-            // Scan external disk root and common folders
-            for (const folder of ['', ...commonFolders]) {
-                const folderPath = folder ? path.join(disk.mount, folder) : disk.mount;
-                if (fs.existsSync(folderPath)) {
-                    for (const category of Object.keys(FILE_CATEGORIES) as (keyof typeof FILE_CATEGORIES)[]) {
-                        const files = scanDirectoryForCategory(folderPath, category, 20);
-                        stats[category].files.push(...files);
-                        stats[category].count += files.length;
-                        stats[category].size += files.reduce((sum, f) => sum + f.size, 0);
-                    }
-                }
+            } catch (e) {
+                // Skip specific folder error
             }
         }
     }
@@ -163,22 +153,53 @@ export const getFiles = async (req: Request, res: Response) => {
 
         // Get real disk information
         const allDisks = await si.fsSize();
-        const relevantDisks = allDisks
-            .filter(d => {
-                // Only real physical disks
-                const isPhysical = d.fs.startsWith('/dev/sd') || d.fs.startsWith('/dev/nvme');
-                const hasMount = d.mount && d.mount !== '';
-                const notSnap = !d.mount.includes('/snap');
-                return isPhysical && hasMount && notSnap;
-            })
-            .map(d => ({
-                name: d.mount === '/' ? 'Disco Local (Sistema)' : path.basename(d.mount) || d.fs,
-                mount: d.mount,
-                size: d.size,
-                used: d.used,
-                percent: Math.round((d.used / d.size) * 100),
-                type: d.mount === '/' ? 'system' : 'external'
-            }));
+        let relevantDisks: any[] = [];
+
+        // Get disk temperature
+        try {
+            const temps = await si.cpuTemperature();
+            // Note: si.cpuTemperature() might not give per-disk temp on all systems, 
+            // but si.diskLayout() often has temperature if smartmontools is installed.
+            const diskLayout = await si.diskLayout();
+            relevantDisks = allDisks
+                .filter(d => {
+                    const isPhysical = d.fs.startsWith('/dev/sd') || d.fs.startsWith('/dev/nvme');
+                    const hasMount = d.mount && d.mount !== '';
+                    const notSnap = !d.mount.includes('/snap');
+                    return isPhysical && hasMount && notSnap;
+                })
+                .map(d => {
+                    // Try to find matching disk in layout for temperature
+                    const layout = diskLayout.find(l => d.fs.includes(l.device) || l.device.includes(d.fs.split('/').pop() || ''));
+                    return {
+                        name: d.mount === '/' ? 'Disco Local (Sistema)' : path.basename(d.mount) || d.fs,
+                        mount: d.mount,
+                        size: d.size,
+                        used: d.used,
+                        percent: Math.round((d.used / d.size) * 100),
+                        type: d.mount === '/' ? 'system' : 'external',
+                        temperature: layout?.temperature || temps.main || null
+                    };
+                });
+        } catch (e) {
+            console.error('[Temperature] Error:', e);
+            relevantDisks = allDisks
+                .filter(d => {
+                    const isPhysical = d.fs.startsWith('/dev/sd') || d.fs.startsWith('/dev/nvme');
+                    const hasMount = d.mount && d.mount !== '';
+                    const notSnap = !d.mount.includes('/snap');
+                    return isPhysical && hasMount && notSnap;
+                })
+                .map(d => ({
+                    name: d.mount === '/' ? 'Disco Local (Sistema)' : path.basename(d.mount) || d.fs,
+                    mount: d.mount,
+                    size: d.size,
+                    used: d.used,
+                    percent: Math.round((d.used / d.size) * 100),
+                    type: d.mount === '/' ? 'system' : 'external',
+                    temperature: null
+                }));
+        }
 
         let metadata: any[] = [];
         let categoryStats: any = null;
@@ -282,7 +303,7 @@ export const getFiles = async (req: Request, res: Response) => {
             categoryStats = await getCategoryStats(relevantDisks);
 
             // Add real disks
-            metadata = relevantDisks.map(disk => ({
+            metadata = relevantDisks.map((disk: any) => ({
                 name: disk.name,
                 path: disk.mount,
                 size: disk.size,
@@ -376,7 +397,7 @@ export const getFiles = async (req: Request, res: Response) => {
 
         // Find which disk this path belongs to
         if (queryPath) {
-            const disk = relevantDisks.find(d => queryPath.startsWith(d.mount));
+            const disk = relevantDisks.find((d: any) => queryPath.startsWith(d.mount));
             if (disk) {
                 storageStats.total = disk.size;
                 storageStats.used = disk.used;
@@ -384,14 +405,16 @@ export const getFiles = async (req: Request, res: Response) => {
             }
         }
 
+        console.log(`[getFiles] Success: ${metadata.length} files returned`);
         res.json({
             files: metadata,
             stats: storageStats
         });
 
     } catch (error: any) {
-        console.error('[getFiles] Error:', error);
-        res.status(500).json({ error: error.message });
+        const message = error?.message || (typeof error === 'string' ? error : 'Erro interno no servidor');
+        console.error('[getFiles] Error:', message, error);
+        res.status(500).json({ error: message });
     }
 };
 

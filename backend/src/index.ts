@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { db } from './config/firebase';
 import fs from 'fs';
 import path from 'path';
+import si from 'systeminformation';
 
 // Setup file logging
 const logDirectory = path.join(__dirname, '..', 'logs');
@@ -40,6 +41,14 @@ console.error = function (message, ...optionalParams) {
     originalConsoleError.apply(console, [message, ...optionalParams]);
 };
 
+process.on('uncaughtException', (err) => {
+    console.error('UNCAUGHT EXCEPTION:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});
+
 dotenv.config();
 
 const app = express();
@@ -69,12 +78,62 @@ app.use((req, res, next) => {
     next();
 });
 
+// 2. Monitoring and SSE
+let clients: any[] = [];
+let lastDiskCount = 0;
+
+// SSE Endpoint for real-time updates
+app.get('/api/cloud/events', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    // res.flushHeaders(); // Optional, remove if causing issues
+
+    const clientId = Date.now();
+    const newClient = { id: clientId, res };
+    clients.push(newClient);
+
+    req.on('close', () => {
+        clients = clients.filter(c => c.id !== clientId);
+    });
+
+    // Send initial ping
+    res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+});
+
+const notifyClients = (payload: any) => {
+    clients.forEach(c => c.res.write(`data: ${JSON.stringify(payload)}\n\n`));
+};
+
+// Monitor disks every 10 seconds
+setInterval(async () => {
+    try {
+        const disks = await si.fsSize();
+        const physicalDisks = disks.filter(d =>
+            (d.fs.startsWith('/dev/sd') || d.fs.startsWith('/dev/nvme')) &&
+            d.mount && !d.mount.includes('/snap')
+        );
+
+        if (physicalDisks.length !== lastDiskCount) {
+            console.log(`[Monitor] Disk change detected: ${lastDiskCount} -> ${physicalDisks.length}`);
+            notifyClients({
+                type: 'disk_change',
+                count: physicalDisks.length,
+                timestamp: new Date().toISOString()
+            });
+            lastDiskCount = physicalDisks.length;
+        }
+    } catch (e) {
+        console.error('[Monitor] Error:', e);
+    }
+}, 10000);
+
 // Routes
 app.use('/api/cloud', deviceRoutes); // Professional endpoint naming
 
 // Basic Health Check
 app.get('/', (req, res) => {
-    res.json({ status: 'CloudDesk Professional Backend 🚀' });
+    res.json({ status: 'CloudDesk Professional Backend 🚀', clients: clients.length });
 });
 
 app.listen(PORT, () => {
