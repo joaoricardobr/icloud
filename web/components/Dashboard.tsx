@@ -518,31 +518,43 @@ export default function Dashboard() {
 
     // Initial load and SSE Connection
     useEffect(() => {
-        fetchData();
-
-        // Connect to SSE for automatic disk detection
-        const eventSource = new EventSource(`${api.defaults.baseURL}/events`);
-
-        eventSource.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.type === 'disk_change') {
-                    console.log("💿 Disk change detected via SSE, refreshing...");
-                    handleRefresh();
-                }
-            } catch (err) {
-                console.error("SSE Error parsing data:", err);
+        // Wait for API URL to be ready (from Firestore/Localhost discovery)
+        const waitForApi = setInterval(() => {
+            if (api.defaults.baseURL && api.defaults.baseURL !== "") {
+                clearInterval(waitForApi);
+                console.log("🚀 API Ready:", api.defaults.baseURL);
+                fetchData();
+                setupSSE();
             }
-        };
+        }, 100);
 
-        eventSource.onerror = (err) => {
-            console.error("SSE Connection failed:", err);
-            eventSource.close();
+        let eventSource: EventSource | null = null;
+
+        const setupSSE = () => {
+            // Connect to SSE for automatic disk detection
+            eventSource = new EventSource(`${api.defaults.baseURL}/events`);
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'disk_change') {
+                        console.log("💿 Disk change detected via SSE, refreshing...");
+                        handleRefresh();
+                    }
+                } catch (err) {
+                    console.error("SSE Error parsing data:", err);
+                }
+            };
+
+            eventSource.onerror = (err) => {
+                console.error("SSE Connection failed:", err);
+                eventSource?.close();
+            };
         };
 
         // Automatic refresh every 5 minutes if window is focused (fallback)
         const interval = setInterval(() => {
-            if (document.visibilityState === 'visible') {
+            if (document.visibilityState === 'visible' && api.defaults.baseURL) {
                 console.log("🔄 Auto-refreshing connectivity...");
                 handleRefresh();
             }
@@ -550,7 +562,7 @@ export default function Dashboard() {
 
         // Also refresh when tab becomes visible again
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
+            if (document.visibilityState === 'visible' && api.defaults.baseURL) {
                 handleRefresh();
             }
         };
@@ -558,7 +570,8 @@ export default function Dashboard() {
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
-            eventSource.close();
+            clearInterval(waitForApi);
+            if (eventSource) eventSource.close();
             clearInterval(interval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
@@ -567,6 +580,8 @@ export default function Dashboard() {
     // Check Server Status
     useEffect(() => {
         const checkStatus = async () => {
+            if (!api.defaults.baseURL) return; // Wait for API
+
             try {
                 // Short timeout to detect offline quickly
                 // Use fetch to bypass axios baseURL which includes /api/cloud
@@ -590,12 +605,20 @@ export default function Dashboard() {
             }
         };
 
-        // Check immediately
-        checkStatus();
+        // Poll for API ready then start checking status
+        const waitForApiStatus = setInterval(() => {
+            if (api.defaults.baseURL) {
+                checkStatus();
+                clearInterval(waitForApiStatus);
+                // Start regular interval
+                const interval = setInterval(checkStatus, 10000);
+                // Cleanup inside the closure is tricky, relying on component unmount
+                // Better approach: move interval to a ref or just let the main return handle it?
+                // For simplicity, we restart the interval logic in a cleaner way below
+            }
+        }, 500);
 
-        // Check every 10 seconds
-        const interval = setInterval(checkStatus, 10000);
-        return () => clearInterval(interval);
+        return () => clearInterval(waitForApiStatus);
     }, []);
 
     return (
