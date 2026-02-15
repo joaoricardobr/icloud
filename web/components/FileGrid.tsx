@@ -2,6 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import Image from "next/image";
 import { MoreVertical, Star, Trash2, Folder, Share2, CheckCircle2 } from "lucide-react";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { getFileIcon, getFileColor, formatBytes, formatDate, truncateText } from "@/lib/utils";
@@ -107,13 +108,20 @@ export default function FileGrid({
                                                 "dark:bg-slate-800" // Simplified for dark mode
                                             )}>
                                                 {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|mp4|mkv|mov)$/i)) ? (
-                                                    <img
+                                                    <Image
                                                         src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}`}
                                                         alt={file.name}
-                                                        className="w-full h-full object-cover"
+                                                        className="w-full h-full object-cover relative z-10"
+                                                        width={40}
+                                                        height={40}
+                                                        unoptimized
                                                         onError={(e) => {
-                                                            (e.target as any).style.display = 'none';
-                                                            (e.target as any).parentElement.innerHTML = `<svg class="${color} w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${file.isDirectory ? 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' : 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'}"></path></svg>`;
+                                                            const target = e.target as HTMLImageElement;
+                                                            target.style.display = 'none';
+                                                            const container = target.parentElement;
+                                                            if (container) {
+                                                                container.innerHTML = `<svg class="${color} w-5 h-5 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${file.isDirectory ? 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' : 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'}"></path></svg>`;
+                                                            }
                                                         }}
                                                     />
                                                 ) : (
@@ -246,14 +254,21 @@ export default function FileGrid({
                                 <div className={`absolute inset-0 bg-gradient-to-br ${color.replace('text-', 'from-').replace('600', '500')} to-transparent opacity-0 group-hover:opacity-20 transition-opacity`} />
 
                                 {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|mp4|mkv|mov)$/i)) ? (
-                                    <img
+                                    <Image
                                         src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}`}
                                         alt={file.name}
                                         className="w-full h-full object-cover relative z-10"
+                                        width={96}
+                                        height={96}
+                                        unoptimized
                                         onError={(e) => {
                                             // Fallback to icon if thumbnail fails
-                                            (e.target as any).style.display = 'none';
-                                            (e.target as any).parentElement.innerHTML = `<svg class="${color} w-8 h-8 md:w-11 md:h-11 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${Icon === Folder ? 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' : 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'}"></path></svg>`;
+                                            const target = e.target as HTMLImageElement;
+                                            target.style.display = 'none';
+                                            const container = target.parentElement;
+                                            if (container) {
+                                                container.innerHTML = `<svg class="${color} w-8 h-8 md:w-11 md:h-11 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${Icon === Folder ? 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' : 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'}"></path></svg>`;
+                                            }
                                         }}
                                     />
                                 ) : (

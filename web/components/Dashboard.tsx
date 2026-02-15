@@ -16,7 +16,7 @@ import UploadModal from "./modals/UploadModal";
 import SettingsPage from "@/app/dashboard/settings/page";
 import { pageTransition, staggerContainer, slideInFromTop } from "@/lib/animations";
 import { RefreshCw, HardDrive, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import { getCache, setCache } from "@/lib/db";
 
 interface FileItem {

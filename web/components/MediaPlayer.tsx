@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import { X, Download, Maximize2, Minimize2, Play, Pause, Volume2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { formatBytes } from "@/lib/utils";
@@ -81,11 +82,16 @@ export default function MediaPlayer({ file, onClose, apiUrl }: MediaPlayerProps)
                 {/* Content View */}
                 <div className="p-8 flex items-center justify-center min-h-[400px] max-h-[70vh] items-center justify-center overflow-hidden">
                     {type === "image" && (
-                        <img
-                            src={fileUrl}
-                            alt={file.name}
-                            className="max-w-full max-h-full rounded-2xl shadow-lg object-contain"
-                        />
+                        <div className="relative w-full h-full flex items-center justify-center">
+                            <Image
+                                src={fileUrl}
+                                alt={file.name}
+                                className="max-w-full max-h-full rounded-2xl shadow-lg object-contain"
+                                width={800}
+                                height={600}
+                                unoptimized
+                            />
+                        </div>
                     )}
 
                     {type === "video" && (
