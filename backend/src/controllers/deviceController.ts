@@ -561,9 +561,17 @@ export const downloadFile = async (req: Request, res: Response) => {
         }
 
         const absolutePath = validatePath(filePath);
+        const isView = req.query.view === 'true';
 
         if (!fs.existsSync(absolutePath)) {
             return res.status(404).json({ error: 'File not found' });
+        }
+
+        if (isView) {
+            // For images and documents, sendFile allows browser to render inline
+            // We set Content-Disposition to inline for good measure
+            res.setHeader('Content-Disposition', 'inline');
+            return res.sendFile(absolutePath);
         }
 
         res.download(absolutePath);

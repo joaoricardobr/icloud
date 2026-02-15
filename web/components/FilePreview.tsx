@@ -55,9 +55,12 @@ export default function FilePreview({
     const audioRef = useRef<HTMLAudioElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
+    const [zoomMode, setZoomMode] = useState<"fit" | "original">("fit");
+
     // Reset zoom and states when file changes
     useEffect(() => {
         setZoom(100);
+        setZoomMode("fit");
         setError("");
         setIsPlaying(false);
         setCurrentTime(0);
@@ -100,11 +103,12 @@ export default function FilePreview({
     };
 
     const fileType = getFileType(file.name);
-    const fileUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}`;
+    const viewUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}&view=true`;
+    const downloadUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}`;
 
     const handleDownload = () => {
         const link = document.createElement('a');
-        link.href = fileUrl;
+        link.href = downloadUrl;
         link.download = file.name;
         document.body.appendChild(link);
         link.click();
@@ -121,12 +125,20 @@ export default function FilePreview({
         switch (fileType) {
             case 'image':
                 return (
-                    <div className="flex items-center justify-center h-full p-4 md:p-8">
+                    <div className={cn(
+                        "flex items-center justify-center h-full p-4 md:p-8 overflow-auto scrollbar-hide bg-slate-100/50",
+                        zoomMode === "original" ? "items-start justify-start cursor-zoom-out" : "cursor-zoom-in"
+                    )}
+                        onClick={() => setZoomMode(prev => prev === "fit" ? "original" : "fit")}
+                    >
                         <motion.img
-                            src={fileUrl}
+                            src={viewUrl}
                             alt={file.name}
-                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
-                            style={{ transform: `scale(${zoom / 100})` }}
+                            className={cn(
+                                "rounded-2xl shadow-2xl transition-all duration-300",
+                                zoomMode === "fit" ? "max-w-full max-h-full object-contain" : "max-w-none max-h-none"
+                            )}
+                            style={zoomMode === "fit" ? { transform: `scale(${zoom / 100})` } : {}}
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ duration: 0.3 }}
@@ -140,7 +152,7 @@ export default function FilePreview({
                     <div className="flex items-center justify-center h-full p-4 md:p-8 bg-black">
                         <video
                             ref={videoRef}
-                            src={fileUrl}
+                            src={viewUrl}
                             controls
                             autoPlay
                             className="max-w-full max-h-full rounded-xl shadow-2xl"
@@ -193,7 +205,7 @@ export default function FilePreview({
                         <div className="w-full max-w-xl bg-white/50 backdrop-blur-xl p-6 rounded-[32px] shadow-xl border border-white/50 space-y-4">
                             <audio
                                 ref={audioRef}
-                                src={fileUrl}
+                                src={viewUrl}
                                 onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
                                 onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
                                 onPlay={() => setIsPlaying(true)}
@@ -244,7 +256,7 @@ export default function FilePreview({
                 return (
                     <div className="h-full p-4">
                         <iframe
-                            src={fileUrl}
+                            src={viewUrl}
                             className="w-full h-full rounded-2xl border border-slate-200 bg-white"
                             title={file.name}
                             onError={() => setError("Erro ao carregar PDF")}
@@ -266,7 +278,7 @@ export default function FilePreview({
                                 </div>
                             </div>
                             <iframe
-                                src={fileUrl}
+                                src={viewUrl}
                                 className="w-full h-[60vh] border-none rounded-xl"
                                 title={file.name}
                                 onError={() => setError("Erro ao carregar documento")}
@@ -329,17 +341,33 @@ export default function FilePreview({
                             {fileType === 'image' && (
                                 <div className="hidden md:flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-100 mr-2 shadow-sm">
                                     <button
+                                        onClick={() => setZoomMode(zoomMode === "fit" ? "original" : "fit")}
+                                        className={cn(
+                                            "p-2 rounded-xl transition-all flex items-center gap-2 px-3",
+                                            zoomMode === "original" ? "bg-slate-900 text-white" : "hover:bg-slate-50 text-slate-500"
+                                        )}
+                                        title={zoomMode === "fit" ? "Ver Tamanho Original" : "Ajustar à Tela"}
+                                    >
+                                        <Maximize size={18} />
+                                        <span className="text-xs font-black uppercase tracking-wider">
+                                            {zoomMode === "fit" ? "Original" : "Ajustar"}
+                                        </span>
+                                    </button>
+                                    <div className="w-px h-4 bg-slate-100 mx-1" />
+                                    <button
                                         onClick={() => setZoom(Math.max(25, zoom - 25))}
-                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
+                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600 disabled:opacity-30"
+                                        disabled={zoomMode === "original"}
                                     >
                                         <ZoomOut size={18} />
                                     </button>
                                     <span className="text-xs font-black min-w-[3rem] text-center text-slate-700">
-                                        {zoom}%
+                                        {zoomMode === "original" ? "1:1" : `${zoom}%`}
                                     </span>
                                     <button
                                         onClick={() => setZoom(Math.min(300, zoom + 25))}
-                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
+                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600 disabled:opacity-30"
+                                        disabled={zoomMode === "original"}
                                     >
                                         <ZoomIn size={18} />
                                     </button>
