@@ -55,12 +55,12 @@ export default function FilePreview({
     const audioRef = useRef<HTMLAudioElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    const [zoomMode, setZoomMode] = useState<"fit" | "original">("fit");
+    const [zoomMode, setZoomMode] = useState<"fit" | "original">("original");
 
     // Reset zoom and states when file changes
     useEffect(() => {
         setZoom(100);
-        setZoomMode("fit");
+        setZoomMode("original");
         setError("");
         setIsPlaying(false);
         setCurrentTime(0);
