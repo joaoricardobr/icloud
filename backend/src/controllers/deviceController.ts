@@ -41,6 +41,18 @@ const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_C
     // Increased maxFiles and depth slightly for better results
     if (depth > 3 || maxFiles <= 0 || !fs.existsSync(dirPath)) return [];
 
+    // STRICT IGNORE LIST - Vital for preventing Permission Denied errors and hanging
+    const IGNORED_DIRS = [
+        'node_modules', 'snap', 'System Volume Information', '$RECYCLE.BIN', 'Config.Msi',
+        'Windows', 'Program Files', 'Program Files (x86)', 'AppData', 'Application Data',
+        'boot', 'dev', 'etc', 'lib', 'lib64', 'lost+found', 'mnt', 'opt', 'proc', 'root',
+        'run', 'sbin', 'srv', 'sys', 'tmp', 'usr', 'var', 'bin'
+    ];
+
+    if (IGNORED_DIRS.some(ignored => dirPath.includes(path.sep + ignored) || dirPath.endsWith(path.sep + ignored))) {
+        return [];
+    }
+
     const results: any[] = [];
     const extensions = FILE_CATEGORIES[category];
 
@@ -49,11 +61,16 @@ const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_C
 
         for (const item of items) {
             // Skip hidden and system folders
-            if (item.startsWith('.') || item === 'node_modules' || item === 'snap' || item === 'System Volume Information') continue;
+            if (item.startsWith('.')) continue;
+            if (IGNORED_DIRS.includes(item)) continue;
 
             const itemPath = path.join(dirPath, item);
 
             try {
+                // Check if it's a symlink to avoid loops
+                const lstat = fs.lstatSync(itemPath);
+                if (lstat.isSymbolicLink()) continue;
+
                 const stats = fs.statSync(itemPath);
 
                 if (stats.isDirectory()) {

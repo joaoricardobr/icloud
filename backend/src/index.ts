@@ -61,11 +61,20 @@ import deviceRoutes from './routes/deviceRoutes';
 // 1. CORS Middleware (Optimized for Vercel + Cloudflare Tunnel)
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow all origins that match Vercel or Cloudflare
-        if (!origin || origin.includes('vercel.app') || origin.endsWith('.trycloudflare.com') || origin.includes('localhost')) {
+        // Allow all origins that match Vercel or Cloudflare or Localhost
+        const allowed = !origin ||
+            origin.includes('vercel.app') ||
+            origin.endsWith('.trycloudflare.com') ||
+            origin.includes('localhost') ||
+            origin.startsWith('http://192.168.') ||
+            origin === 'null'; // For some local tools
+
+        if (allowed) {
             callback(null, true);
         } else {
-            callback(null, true); // Fallback to allow for dynamic tunnels
+            // In development/tunneling, we might want to be permissive
+            console.log(`[CORS] Request from unknown origin: ${origin}`);
+            callback(null, true);
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
