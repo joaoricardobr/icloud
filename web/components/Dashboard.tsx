@@ -594,14 +594,21 @@ export default function Dashboard() {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 2000);
                     try {
+                        // baseUrl now has no trailing slash, so we add ONE.
                         await fetch(`${baseUrl}/`, { method: 'HEAD', signal: controller.signal });
+                        setServerStatus("online");
+                    } catch (err: any) {
+                        if (err.name !== 'AbortError') {
+                            console.error("Server check failed:", err);
+                        }
+                        setServerStatus("offline");
                     } finally {
                         clearTimeout(timeoutId);
                     }
                 } else {
                     await api.get('/', { timeout: 2000 });
+                    setServerStatus("online");
                 }
-                setServerStatus("online");
             } catch (err) {
                 console.error("Server check failed:", err);
                 setServerStatus("offline");

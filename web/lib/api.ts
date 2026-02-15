@@ -3,7 +3,6 @@ import { auth, db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 // Cache Buster: Dynamic API Discovery
-// Initial base URL is empty, will be populated by discovery
 const api = axios.create({
     baseURL: "", // Starts empty
     headers: {
@@ -15,8 +14,6 @@ const api = axios.create({
 const updateBaseURL = async (retryCount = 0) => {
     // Priority 1: If we are on localhost, try the local backend first
     if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-        // Check if local backend is actually running before enforcing it?
-        // Ideally we assume yes for dev.
         api.defaults.baseURL = "http://localhost:3001/api/cloud";
         console.log("🏠 Localhost/127.0.0.1 detectado. Usando backend local:", api.defaults.baseURL);
         return;
@@ -30,7 +27,7 @@ const updateBaseURL = async (retryCount = 0) => {
             const data = configDoc.data();
             if (data.baseUrl) {
                 let url = data.baseUrl;
-                if (!url.endsWith('/')) url += '/';
+                if (url.endsWith('/')) url = url.slice(0, -1); // Remove trailing slash
                 api.defaults.baseURL = url;
                 console.log("✅ CloudDesk API URL dinâmica carregada do Firestore:", api.defaults.baseURL);
                 return;
@@ -44,11 +41,13 @@ const updateBaseURL = async (retryCount = 0) => {
 
     // Retry logic
     if (retryCount < 5) {
-        const timeout = Math.min(2000 * (retryCount + 1), 10000); // Exponential backoff capped at 10s
+        const timeout = Math.min(2000 * (retryCount + 1), 10000);
         console.log(`⏳ Falha ao obter URL. Tentando novamente em ${timeout / 1000} segundos...`);
         setTimeout(() => updateBaseURL(retryCount + 1), timeout);
     } else {
-        console.error("❌ Falha crítica: Não foi possível obter a URL da API após várias tentativas.");
+        console.error("❌ Falha crítica: Não foi possível obter a URL da API.");
+        // Fallback final
+        api.defaults.baseURL = "http://localhost:3001/api/cloud";
     }
 };
 
