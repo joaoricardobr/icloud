@@ -16,14 +16,14 @@ export default function SettingsPage() {
             className="pb-12 space-y-8"
         >
             <div>
-                <h2 className="text-3xl font-black text-slate-900 mb-2">Configurações</h2>
-                <p className="text-slate-500">Gerencie as configurações do sistema e veja os logs.</p>
+                <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2">Configurações</h2>
+                <p className="text-slate-500 dark:text-slate-400">Gerencie as configurações do sistema e veja os logs.</p>
             </div>
-            
+
             <Settings />
 
             <LogTerminal />
-            
+
         </motion.div>
     );
 }

@@ -66,23 +66,23 @@ export default function CreateFolderModal({
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        className="bg-white rounded-[40px] shadow-[0_32px_128px_rgba(0,0,0,0.15)] w-full max-w-lg overflow-hidden border border-white flex flex-col"
+                        className="bg-white dark:bg-slate-900 rounded-[40px] shadow-[0_32px_128px_rgba(0,0,0,0.15)] w-full max-w-lg overflow-hidden border border-white dark:border-slate-800 flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}
-                        <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-gradient-to-r from-blue-50/50 to-transparent">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-blue-50/50 dark:from-blue-900/10 to-transparent">
                             <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-100">
+                                <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-100 dark:shadow-none">
                                     <FolderPlus size={28} />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight">Nova Pasta</h2>
-                                    <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-0.5">Organize seus arquivos</p>
+                                    <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Nova Pasta</h2>
+                                    <p className="text-sm text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">Organize seus arquivos</p>
                                 </div>
                             </div>
                             <button
                                 onClick={onClose}
-                                className="p-3 hover:bg-slate-100 rounded-2xl text-slate-400 transition-all hover:scale-110 active:scale-95"
+                                className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl text-slate-400 transition-all hover:scale-110 active:scale-95"
                             >
                                 <X size={24} />
                             </button>
@@ -109,14 +109,14 @@ export default function CreateFolderModal({
                                     value={folderName}
                                     onChange={(e) => setFolderName(e.target.value)}
                                     placeholder="Ex: Documentos Importantes, Fotos 2024..."
-                                    className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 text-lg font-bold text-slate-700 placeholder:text-slate-300 focus:ring-4 focus:ring-blue-600/10 focus:bg-white transition-all outline-none"
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl py-4 px-6 text-lg font-bold text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:ring-4 focus:ring-blue-600/10 focus:bg-white dark:focus:bg-slate-800 transition-all outline-none"
                                 />
                             </div>
 
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between px-1">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Local de Destino</label>
-                                    <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md truncate max-w-[200px]">
+                                    <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md truncate max-w-[200px]">
                                         {selectedPath || "Selecione..."}
                                     </div>
                                 </div>
@@ -131,7 +131,7 @@ export default function CreateFolderModal({
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="flex-1 py-4 rounded-2xl font-black text-slate-400 hover:bg-slate-50 transition-all active:scale-95 border border-transparent hover:border-slate-100"
+                                    className="flex-1 py-4 rounded-2xl font-black text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all active:scale-95 border border-transparent hover:border-slate-100 dark:hover:border-slate-700"
                                 >
                                     CANCELAR
                                 </button>

@@ -131,15 +131,15 @@ export function getCategoryColor(category: string): string {
     const normalized = category.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     switch (normalized) {
         case 'imagens':
-            return 'from-green-500 to-emerald-600 shadow-green-200';
+            return 'from-emerald-500 to-teal-600';
         case 'videos':
-            return 'from-purple-500 to-indigo-600 shadow-purple-200';
+            return 'from-indigo-500 to-blue-600';
         case 'musicas':
-            return 'from-pink-500 to-rose-600 shadow-pink-200';
+            return 'from-rose-500 to-pink-600';
         case 'documentos':
-            return 'from-orange-500 to-red-600 shadow-orange-200';
+            return 'from-amber-500 to-orange-600';
         default:
-            return 'from-gray-500 to-gray-600 shadow-gray-200';
+            return 'from-slate-500 to-slate-600';
     }
 }
 

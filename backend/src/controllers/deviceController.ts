@@ -412,14 +412,19 @@ export const getFiles = async (req: Request, res: Response) => {
         }
 
         // Calculate storage stats for current path
-        let storageStats = {
+        let storageStats: any = {
             total: 0,
             used: 0,
             percent: 0,
             path: queryPath,
             allDisks: relevantDisks,
-            categories: categoryStats
+            categories: categoryStats,
+            global: {
+                total: relevantDisks.reduce((acc: number, d: any) => acc + d.size, 0),
+                used: relevantDisks.reduce((acc: number, d: any) => acc + d.used, 0)
+            }
         };
+        storageStats.global.percent = Math.round((storageStats.global.used / storageStats.global.total) * 100) || 0;
 
         // Find which disk this path belongs to
         if (queryPath) {

@@ -28,20 +28,20 @@ export default function DiskCard({
 }: DiskCardProps) {
     const getUsageColor = (percentage: number) => {
         if (percentage >= 90) return "from-red-500 to-red-600";
-        if (percentage >= 70) return "from-yellow-500 to-orange-600";
+        if (percentage >= 70) return "from-amber-500 to-orange-600";
         return "from-blue-500 to-indigo-600";
     };
 
     const getUsageTextColor = (percentage: number) => {
-        if (percentage >= 90) return "text-red-600";
-        if (percentage >= 70) return "text-yellow-600";
-        return "text-blue-600";
+        if (percentage >= 90) return "text-red-500";
+        if (percentage >= 70) return "text-amber-500";
+        return "text-blue-500";
     };
 
     const getTempColor = (temp: number) => {
-        if (temp >= 55) return "text-red-500 bg-red-50";
-        if (temp >= 45) return "text-orange-500 bg-orange-50";
-        return "text-emerald-500 bg-emerald-50";
+        if (temp >= 55) return "text-red-500 bg-red-50 dark:bg-red-500/10";
+        if (temp >= 45) return "text-orange-500 bg-orange-50 dark:bg-orange-500/10";
+        return "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10";
     };
 
     // Circular progress math
@@ -55,7 +55,7 @@ export default function DiskCard({
             whileHover={{ y: -8, scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={onClick}
-            className="group bg-white rounded-[32px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_32px_64px_rgba(0,0,0,0.1)] transition-all duration-500 cursor-pointer border border-transparent hover:border-blue-100 flex flex-col h-full"
+            className="group bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none hover:shadow-[0_32px_64px_rgba(0,0,0,0.1)] transition-all duration-500 cursor-pointer border border-transparent hover:border-blue-100 dark:hover:border-blue-900/50 flex flex-col h-full"
         >
             <div className="flex items-start justify-between mb-6">
                 <div className="relative">
@@ -68,7 +68,7 @@ export default function DiskCard({
                             stroke="currentColor"
                             strokeWidth="8"
                             fill="transparent"
-                            className="text-slate-100"
+                            className="text-slate-100 dark:text-slate-800"
                         />
                         <motion.circle
                             cx="48"
@@ -87,12 +87,12 @@ export default function DiskCard({
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <span className={`text-xl font-black ${getUsageTextColor(percent)}`}>{percent}%</span>
-                        <span className="text-[9px] font-black uppercase tracking-tighter text-slate-400">Usado</span>
+                        <span className="text-[9px] font-black uppercase tracking-tighter text-slate-400 dark:text-slate-500">Usado</span>
                     </div>
                 </div>
 
                 <div className="flex flex-col items-end gap-2">
-                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getUsageColor(percent)} flex items-center justify-center shadow-lg shadow-blue-100 group-hover:scale-110 transition-transform`}>
+                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getUsageColor(percent)} flex items-center justify-center shadow-lg shadow-blue-100 dark:shadow-none group-hover:scale-110 transition-transform`}>
                         <HardDrive className="w-6 h-6 text-white" />
                     </div>
                     {temperature !== null && temperature !== undefined && (
@@ -109,26 +109,26 @@ export default function DiskCard({
             </div>
 
             <div className="flex-1">
-                <h3 className="text-lg font-black text-slate-800 mb-1 truncate leading-tight">{name}</h3>
+                <h3 className="text-lg font-black text-slate-800 dark:text-white mb-1 truncate leading-tight">{name}</h3>
                 <div className="flex items-center gap-2 mb-4">
                     <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${type === "system"
                         ? "bg-blue-600 text-white"
-                        : "bg-slate-900 text-white"
+                        : "bg-slate-900 border border-slate-700 text-slate-300"
                         }`}>
                         {type === "system" ? "Sistema" : "Extra"}
                     </span>
-                    <span className="text-xs text-slate-400 font-medium truncate">{mount}</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 font-medium truncate">{mount}</span>
                 </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-50 flex items-center justify-between text-[11px] font-bold text-slate-500">
+            <div className="pt-4 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between text-[11px] font-bold text-slate-500">
                 <div className="flex flex-col">
-                    <span className="text-slate-300 uppercase tracking-widest text-[8px]">Espaço Disponível</span>
-                    <span className="text-slate-700">{formatBytes(size - used)}</span>
+                    <span className="text-slate-300 dark:text-slate-600 uppercase tracking-widest text-[8px]">Espaço Disponível</span>
+                    <span className="text-slate-700 dark:text-slate-300">{formatBytes(size - used)}</span>
                 </div>
                 <div className="text-right flex flex-col">
-                    <span className="text-slate-300 uppercase tracking-widest text-[8px]">Total</span>
-                    <span className="text-slate-900">{formatBytes(size)}</span>
+                    <span className="text-slate-300 dark:text-slate-600 uppercase tracking-widest text-[8px]">Total</span>
+                    <span className="text-slate-900 dark:text-slate-400">{formatBytes(size)}</span>
                 </div>
             </div>
         </motion.div>

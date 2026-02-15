@@ -26,6 +26,7 @@ interface SidebarProps {
     onViewChange: (view: "home" | "recent" | "favorites" | "trash" | "settings") => void;
     onCategoryChange: (category: string) => void;
     onLogout: () => void;
+    theme?: "light" | "dark";
 }
 
 export default function Sidebar({
@@ -33,7 +34,8 @@ export default function Sidebar({
     activeCategory,
     onViewChange,
     onCategoryChange,
-    onLogout
+    onLogout,
+    theme = "light"
 }: SidebarProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
@@ -85,7 +87,7 @@ export default function Sidebar({
                         : "items-center gap-3 px-4 py-3",
                     isActive
                         ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30"
-                        : "text-gray-700 hover:bg-gray-100"
+                        : "text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800"
                 )}
                 title={isCollapsed ? item.label : ""}
             >
@@ -119,14 +121,14 @@ export default function Sidebar({
                 {isMobile ? (
                     <button
                         onClick={() => setIsMobileOpen(false)}
-                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 md:hidden"
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-400 md:hidden"
                     >
                         <X size={20} />
                     </button>
                 ) : (
                     <button
                         onClick={() => setIsCollapsed(!isCollapsed)}
-                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
                     >
                         <ChevronLeft className={cn("transition-transform duration-300", isCollapsed && "rotate-180")} size={20} />
                     </button>
@@ -171,13 +173,13 @@ export default function Sidebar({
             </motion.nav>
 
             {/* Logout */}
-            <div className="p-3 border-t border-gray-100">
+            <div className="p-3 border-t border-gray-100 dark:border-slate-800">
                 <motion.button
                     onClick={onLogout}
                     whileHover={{ x: isCollapsed ? 0 : 4 }}
                     whileTap={{ scale: 0.98 }}
                     className={cn(
-                        "w-full flex transition-all duration-200 rounded-xl text-gray-700 hover:bg-red-50 hover:text-red-600",
+                        "w-full flex transition-all duration-200 rounded-xl text-gray-700 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600",
                         isCollapsed ? "flex-col items-center justify-center py-3" : "items-center gap-3 px-4 py-3"
                     )}
                 >
@@ -193,7 +195,7 @@ export default function Sidebar({
             <>
                 <button
                     onClick={() => setIsMobileOpen(true)}
-                    className="fixed top-4 left-4 z-40 p-3 bg-white shadow-xl rounded-2xl text-gray-600 md:hidden border border-gray-100"
+                    className="fixed top-4 left-4 z-40 p-3 bg-white dark:bg-slate-900 shadow-xl rounded-2xl text-gray-600 dark:text-slate-400 md:hidden border border-gray-100 dark:border-slate-800"
                 >
                     <Menu size={24} />
                 </button>
@@ -213,7 +215,7 @@ export default function Sidebar({
                                 animate={{ x: 0 }}
                                 exit={{ x: "-100%" }}
                                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                                className="fixed top-0 left-0 bottom-0 w-72 bg-white z-50 shadow-2xl md:hidden"
+                                className="fixed top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 z-50 shadow-2xl md:hidden"
                             >
                                 {sidebarContent}
                             </motion.aside>
@@ -229,7 +231,7 @@ export default function Sidebar({
             initial={false}
             animate={{ width: isCollapsed ? 88 : 256 }}
             transition={{ type: "spring", damping: 20, stiffness: 150 }}
-            className="hidden md:flex bg-white border-r border-gray-200 flex-col shadow-xl z-20 relative overflow-hidden"
+            className="hidden md:flex bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 flex-col shadow-xl z-20 relative overflow-hidden"
         >
             {sidebarContent}
         </motion.aside>

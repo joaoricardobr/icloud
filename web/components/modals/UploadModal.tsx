@@ -108,7 +108,7 @@ export default function UploadModal({
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        className="bg-white rounded-[40px] shadow-[0_32px_128px_rgba(0,0,0,0.15)] w-full max-w-2xl overflow-hidden border border-white flex flex-col"
+                        className="bg-white dark:bg-slate-900 rounded-[40px] shadow-[0_32px_128px_rgba(0,0,0,0.15)] w-full max-w-2xl overflow-hidden border border-white dark:border-slate-800 flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Hidden Inputs */}
@@ -131,19 +131,19 @@ export default function UploadModal({
                         />
 
                         {/* Header */}
-                        <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-gradient-to-r from-blue-50/50 to-transparent">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-blue-50/50 dark:from-blue-900/10 to-transparent">
                             <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-100">
+                                <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-100 dark:shadow-none">
                                     <Upload size={28} />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight">Fazer Upload</h2>
-                                    <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-0.5">Envie seus arquivos para a nuvem</p>
+                                    <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Fazer Upload</h2>
+                                    <p className="text-sm text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">Envie seus arquivos para a nuvem</p>
                                 </div>
                             </div>
                             <button
                                 onClick={onClose}
-                                className="p-3 hover:bg-slate-100 rounded-2xl text-slate-400 transition-all hover:scale-110 active:scale-95"
+                                className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl text-slate-400 transition-all hover:scale-110 active:scale-95"
                             >
                                 <X size={24} />
                             </button>
@@ -157,13 +157,13 @@ export default function UploadModal({
                                     <div className="bg-slate-50 rounded-3xl border border-slate-100 p-4 max-h-[280px] overflow-y-auto space-y-2">
                                         {filesToUpload.length > 0 ? (
                                             filesToUpload.map((f, i) => (
-                                                <div key={i} className="flex items-center gap-3 bg-white p-3 rounded-2xl shadow-sm border border-slate-50">
-                                                    <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                                                <div key={i} className="flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-50 dark:border-slate-700">
+                                                    <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400">
                                                         <File size={20} />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-bold text-slate-800 truncate">{f.name}</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold">{formatBytes(f.size)}</p>
+                                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{f.name}</p>
+                                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">{formatBytes(f.size)}</p>
                                                     </div>
                                                     <button
                                                         onClick={() => setFilesToUpload(prev => prev.filter((_, idx) => idx !== i))}
@@ -196,16 +196,16 @@ export default function UploadModal({
                                     )}
                                 </div>
 
-                                <div className="p-6 bg-blue-50 rounded-[32px] border border-blue-100 space-y-4">
+                                <div className="p-6 bg-blue-50 dark:bg-blue-900/10 rounded-[32px] border border-blue-100 dark:border-blue-900/30 space-y-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm">
+                                        <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm">
                                             <Plus size={20} />
                                         </div>
                                         <div>
-                                            <h4 className="text-sm font-black text-slate-800 tracking-tight">Nova pasta?</h4>
+                                            <h4 className="text-sm font-black text-slate-800 dark:text-slate-200 tracking-tight">Nova pasta?</h4>
                                             <button
                                                 onClick={onOpenCreateFolder}
-                                                className="text-[10px] text-blue-600 font-black uppercase tracking-widest hover:underline"
+                                                className="text-[10px] text-blue-600 dark:text-blue-400 font-black uppercase tracking-widest hover:underline"
                                             >
                                                 Criar agora
                                             </button>
@@ -217,7 +217,7 @@ export default function UploadModal({
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between px-1">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Onde salvar?</label>
-                                    <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md truncate max-w-[150px]" title={destination}>
+                                    <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md truncate max-w-[150px]" title={destination}>
                                         {destination || "Selecione..."}
                                     </div>
                                 </div>
@@ -245,7 +245,7 @@ export default function UploadModal({
                             <div className="flex gap-4">
                                 <button
                                     onClick={onClose}
-                                    className="flex-1 py-5 rounded-[24px] font-black text-slate-400 hover:bg-white transition-all active:scale-95"
+                                    className="flex-1 py-5 rounded-[24px] font-black text-slate-400 dark:text-slate-500 hover:bg-white dark:hover:bg-slate-800 transition-all active:scale-95"
                                 >
                                     CANCELAR
                                 </button>

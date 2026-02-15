@@ -13,8 +13,8 @@ export default function Settings() {
             exit="exit"
             className="pb-12"
         >
-            <div className="bg-white p-8 rounded-2xl shadow-lg">
-                <p className="text-slate-500">
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-lg border border-transparent dark:border-slate-800">
+                <p className="text-slate-500 dark:text-slate-400">
                     Aqui você poderá gerenciar as configurações do seu sistema.
                 </p>
             </div>

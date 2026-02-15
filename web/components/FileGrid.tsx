@@ -45,11 +45,11 @@ export default function FileGrid({
 }: FileGridProps) {
     if (files.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
+                <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 text-slate-300 dark:text-slate-600">
                     <Folder size={40} className="opacity-20" />
                 </div>
-                <p className="text-lg font-medium text-slate-500">Nenhum arquivo encontrado</p>
+                <p className="text-lg font-medium text-slate-500 dark:text-slate-400">Nenhum arquivo encontrado</p>
                 <p className="text-sm">Esta pasta está vazia ou a busca não retornou resultados.</p>
             </div>
         );
@@ -61,11 +61,11 @@ export default function FileGrid({
                 variants={staggerContainer}
                 initial="hidden"
                 animate="visible"
-                className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+                className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden"
             >
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="border-b border-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        <tr className="border-b border-slate-50 dark:border-slate-800 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                             <th className="px-6 py-4">Nome</th>
                             <th className="px-6 py-4 hidden md:table-cell">Modificado</th>
                             <th className="px-6 py-4 hidden sm:table-cell text-right">Tamanho</th>
@@ -86,7 +86,7 @@ export default function FileGrid({
                                         e.preventDefault();
                                         onContextMenu?.(file, e);
                                     }}
-                                    className="group hover:bg-slate-50 transition-colors cursor-pointer border-b border-slate-50 last:border-0"
+                                    className="group hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer border-b border-slate-50 dark:border-slate-800 last:border-0"
                                 >
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-4">
@@ -95,7 +95,7 @@ export default function FileGrid({
                                                     onClick={(e) => { e.stopPropagation(); onSelectionChange?.(file.path); }}
                                                     className={cn(
                                                         "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                                                        selectedPaths.includes(file.path) ? "bg-blue-600 border-blue-600 text-white" : "border-slate-300 bg-white"
+                                                        selectedPaths.includes(file.path) ? "bg-blue-600 border-blue-600 text-white" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
                                                     )}
                                                 >
                                                     {selectedPaths.includes(file.path) && <CheckCircle2 size={12} />}
@@ -103,7 +103,8 @@ export default function FileGrid({
                                             )}
                                             <div className={cn(
                                                 "w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0",
-                                                color.replace('text-', 'bg-').replace('600', '100')
+                                                color.replace('text-', 'bg-').replace('600', '100'),
+                                                "dark:bg-slate-800" // Simplified for dark mode
                                             )}>
                                                 {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|mp4|mkv|mov)$/i)) ? (
                                                     <img
@@ -119,40 +120,40 @@ export default function FileGrid({
                                                     <Icon size={20} className={color} />
                                                 )}
                                             </div>
-                                            <span className="font-bold text-slate-700 truncate max-w-[150px] md:max-w-xs">{file.name}</span>
+                                            <span className="font-bold text-slate-700 dark:text-slate-200 truncate max-w-[150px] md:max-w-xs">{file.name}</span>
                                             {file.isFavorite && <Star size={14} className="fill-yellow-400 text-yellow-400 flex-shrink-0" />}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 hidden md:table-cell text-sm text-slate-500">
+                                    <td className="px-6 py-4 hidden md:table-cell text-sm text-slate-500 dark:text-slate-400">
                                         {formatDate(file.mtime)}
                                     </td>
-                                    <td className="px-6 py-4 hidden sm:table-cell text-sm text-slate-500 text-right font-medium">
+                                    <td className="px-6 py-4 hidden sm:table-cell text-sm text-slate-500 dark:text-slate-400 text-right font-medium">
                                         {file.isDirectory ? "--" : formatBytes(file.size)}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-1 md:opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onShare?.(file); }}
-                                                className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-white transition-colors"
+                                                className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-700 transition-colors"
                                                 title="Compartilhar"
                                             >
                                                 <Share2 size={18} />
                                             </button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(file); }}
-                                                className={cn("p-2 rounded-lg hover:bg-white transition-colors", file.isFavorite ? "text-yellow-500" : "text-slate-400")}
+                                                className={cn("p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors", file.isFavorite ? "text-yellow-500" : "text-slate-400")}
                                             >
                                                 <Star size={18} className={file.isFavorite ? "fill-current" : ""} />
                                             </button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onDelete?.(file); }}
-                                                className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-white transition-colors"
+                                                className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-white dark:hover:bg-slate-700 transition-colors"
                                             >
                                                 <Trash2 size={18} />
                                             </button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onContextMenu?.(file, e as any); }}
-                                                className="p-2 rounded-lg text-slate-400 hover:bg-white transition-colors"
+                                                className="p-2 rounded-lg text-slate-400 hover:bg-white dark:hover:bg-slate-700 transition-colors"
                                             >
                                                 <MoreVertical size={18} />
                                             </button>
@@ -190,7 +191,7 @@ export default function FileGrid({
                             onContextMenu?.(file, e);
                         }}
                         className={cn(
-                            "group bg-white rounded-2xl md:rounded-3xl p-2 md:p-4 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 transition-all border border-slate-100 cursor-pointer relative overflow-hidden",
+                            "group bg-white dark:bg-slate-900 rounded-2xl md:rounded-3xl p-2 md:p-4 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-none transition-all border border-slate-100 dark:border-slate-800 cursor-pointer relative overflow-hidden",
                             file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i) && "aspect-square"
                         )}
                     >
@@ -200,7 +201,7 @@ export default function FileGrid({
                                 <div
                                     className={cn(
                                         "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
-                                        selectedPaths.includes(file.path) ? "bg-blue-600 border-blue-600 text-white" : "border-slate-300 bg-white/80 backdrop-blur"
+                                        selectedPaths.includes(file.path) ? "bg-blue-600 border-blue-600 text-white" : "border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-900/80 backdrop-blur"
                                     )}
                                 >
                                     {selectedPaths.includes(file.path) && <CheckCircle2 size={14} />}
@@ -215,19 +216,19 @@ export default function FileGrid({
                         )}>
                             <button
                                 onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(file); }}
-                                className={cn("p-1.5 rounded-full bg-white/90 backdrop-blur shadow-sm border border-slate-100 hover:scale-110 transition-transform", file.isFavorite ? "text-yellow-500" : "text-slate-400")}
+                                className={cn("p-1.5 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm border border-slate-100 dark:border-slate-700 hover:scale-110 transition-transform", file.isFavorite ? "text-yellow-500" : "text-slate-400")}
                             >
                                 <Star size={14} className={file.isFavorite ? "fill-current" : ""} />
                             </button>
                             <button
                                 onClick={(e) => { e.stopPropagation(); onShare?.(file); }}
-                                className="p-1.5 rounded-full bg-white/90 backdrop-blur shadow-sm border border-slate-100 hover:scale-110 transition-transform text-slate-400 hover:text-blue-600"
+                                className="p-1.5 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm border border-slate-100 dark:border-slate-700 hover:scale-110 transition-transform text-slate-400 hover:text-blue-600"
                             >
                                 <Share2 size={14} />
                             </button>
                             <button
                                 onClick={(e) => { e.stopPropagation(); onDelete?.(file); }}
-                                className="p-1.5 rounded-full bg-white/90 backdrop-blur shadow-sm border border-slate-100 hover:scale-110 transition-transform text-slate-400 hover:text-red-500"
+                                className="p-1.5 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm border border-slate-100 dark:border-slate-700 hover:scale-110 transition-transform text-slate-400 hover:text-red-500"
                             >
                                 <Trash2 size={14} />
                             </button>
@@ -236,7 +237,8 @@ export default function FileGrid({
                         <div className="flex flex-col items-center">
                             <div className={cn(
                                 "w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 overflow-hidden",
-                                color.replace('text-', 'bg-').replace('600', '100')
+                                color.replace('text-', 'bg-').replace('600', '100'),
+                                "dark:bg-slate-800"
                             )}>
                                 {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|mp4|mkv|mov)$/i)) ? (
                                     <img
@@ -254,12 +256,12 @@ export default function FileGrid({
                                 )}
                             </div>
 
-                            <h3 className="text-sm font-bold text-slate-800 text-center w-full truncate px-2" title={file.name}>
+                            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 text-center w-full truncate px-2" title={file.name}>
                                 {truncateText(file.name, 20)}
                             </h3>
 
                             <div className="mt-1 flex items-center justify-center gap-2">
-                                <span className="text-[10px] text-slate-400 font-medium">
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
                                     {file.isDirectory ? 'Pasta' : formatBytes(file.size)}
                                 </span>
                                 {file.isFavorite && <Star size={10} className="fill-yellow-400 text-yellow-400" />}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
@@ -14,8 +14,8 @@ import FilePreview from "./FilePreview";
 import CreateFolderModal from "./modals/CreateFolderModal";
 import UploadModal from "./modals/UploadModal";
 import SettingsPage from "@/app/dashboard/settings/page";
-import { pageTransition, staggerContainer } from "@/lib/animations";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { pageTransition, staggerContainer, slideInFromTop } from "@/lib/animations";
+import { RefreshCw, HardDrive, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getCache, setCache } from "@/lib/db";
 
@@ -58,6 +58,25 @@ export default function Dashboard() {
     const [activeCategory, setActiveCategory] = useState<string>("");
     const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
     const [previewIndex, setPreviewIndex] = useState<number>(-1);
+    const [storageStats, setStorageStats] = useState<any>(null);
+
+    // Theme and Mode States
+    const [theme, setTheme] = useState<"light" | "dark">("light");
+
+    useEffect(() => {
+        const savedTheme = localStorage.getItem("theme") as "light" | "dark";
+        if (savedTheme) {
+            setTheme(savedTheme);
+            document.documentElement.classList.toggle("dark", savedTheme === "dark");
+        }
+    }, []);
+
+    const toggleTheme = () => {
+        const newTheme = theme === "light" ? "dark" : "light";
+        setTheme(newTheme);
+        localStorage.setItem("theme", newTheme);
+        document.documentElement.classList.toggle("dark", newTheme === "dark");
+    };
 
     // New states for features
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -72,18 +91,16 @@ export default function Dashboard() {
     const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
 
     // Fetch data from backend
-    const fetchData = async (path: string = "", mode?: string, category?: string) => {
+    const fetchData = useCallback(async (path: string = "", mode?: string, category?: string) => {
         const cacheKey = `data_${path || 'root'}_${mode || 'none'}_${category || 'none'}`;
 
-        // Try to load from cache first
-        const cachedData = await getCache(cacheKey);
-        if (cachedData) {
-            setFiles(cachedData.files || []);
-            setDisks(cachedData.stats?.allDisks || []);
-            setCategoryStats(cachedData.stats?.categories || null);
-            if (!mode && !category) setCurrentPath(path);
-        } else {
+        // Flicker Fix: If we already have some data, don't show full loading screen
+        const hasData = files.length > 0 || disks.length > 0;
+
+        if (!hasData) {
             setLoading(true);
+        } else {
+            setIsRefreshing(true);
         }
 
         setError("");
@@ -103,6 +120,7 @@ export default function Dashboard() {
             setFiles(filesData);
             setDisks(disksData);
             setCategoryStats(categoriesData);
+            setStorageStats(data.stats);
 
             // Save to cache
             setCache(cacheKey, data);
@@ -110,22 +128,19 @@ export default function Dashboard() {
             if (!mode && !category) {
                 setCurrentPath(path);
             }
-        } catch (err: any) {
+
+            // Re-fetch global storage if needed
+            // (The backend now returns storageStats.global)
+        } catch (err) {
             console.error("[Dashboard] Error fetching files:", err);
-            const errorMsg = err.response?.data?.error || err.message || "Erro ao carregar dados";
-            setError(errorMsg);
-            if (!cachedData) {
-                setFiles([]);
-                setDisks([]);
-                setCategoryStats(null);
-            }
+            setError("Erro ao conectar com o servidor.");
         } finally {
             setLoading(false);
             setIsRefreshing(false);
         }
-    };
+    }, [files.length, disks.length]);
 
-    const handleRefresh = async () => {
+    const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
         try {
             await refreshApiConfig();
@@ -134,7 +149,7 @@ export default function Dashboard() {
             console.error("Refresh failed:", err);
             setIsRefreshing(false);
         }
-    };
+    }, [fetchData, currentPath, activeView, activeCategory]);
 
     // Navigate to a path
     const navigateTo = (path: string) => {
@@ -522,10 +537,10 @@ export default function Dashboard() {
             clearInterval(interval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, []);
+    }, [fetchData, handleRefresh]);
 
     return (
-        <div className="flex h-screen bg-slate-50 overflow-hidden">
+        <div className={cn("flex h-screen overflow-hidden", theme === "dark" ? "bg-slate-950" : "bg-slate-50")}>
             {/* Sidebar */}
             <Sidebar
                 activeView={activeView}
@@ -533,6 +548,7 @@ export default function Dashboard() {
                 onViewChange={handleViewChange}
                 onCategoryChange={handleCategoryChange}
                 onLogout={handleLogout}
+                theme={theme}
             />
 
             {/* Main Content */}
@@ -557,6 +573,8 @@ export default function Dashboard() {
                     isAllSelected={selectedPaths.length > 0 && selectedPaths.length === filteredFiles.length}
                     onRefresh={handleRefresh}
                     isRefreshing={isRefreshing}
+                    onThemeToggle={toggleTheme}
+                    theme={theme}
                 />
 
                 {/* Content Area */}
@@ -599,11 +617,11 @@ export default function Dashboard() {
                                                 getBreadcrumbs().slice(-1)[0].name}
                                     </h2>
 
-                                    <div className="flex items-center gap-2 bg-white p-1 rounded-2xl shadow-sm border border-slate-100">
+                                    <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                                         {activeView === "trash" && files.length > 0 && (
                                             <button
                                                 onClick={handleEmptyTrash}
-                                                className="px-4 py-1.5 rounded-xl text-sm font-bold bg-red-50 text-red-600 hover:bg-red-100 transition-all mr-2 flex items-center gap-2"
+                                                className="px-4 py-1.5 rounded-xl text-sm font-bold bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-all mr-2 flex items-center gap-2"
                                             >
                                                 <Trash2 size={16} />
                                                 Esvaziar Lixeira
@@ -611,19 +629,19 @@ export default function Dashboard() {
                                         )}
                                         <button
                                             onClick={() => setFilterType("all")}
-                                            className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "all" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
+                                            className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "all" ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg shadow-slate-400 dark:shadow-none" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800")}
                                         >
                                             Todos
                                         </button>
                                         <button
                                             onClick={() => setFilterType("folders")}
-                                            className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "folders" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
+                                            className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "folders" ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg shadow-slate-400 dark:shadow-none" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800")}
                                         >
                                             Pastas
                                         </button>
                                         <button
                                             onClick={() => setFilterType("files")}
-                                            className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "files" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50")}
+                                            className={cn("px-4 py-1.5 rounded-xl text-sm font-bold transition-all", filterType === "files" ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg shadow-slate-400 dark:shadow-none" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800")}
                                         >
                                             Arquivos
                                         </button>
@@ -651,10 +669,70 @@ export default function Dashboard() {
                                                     <section>
                                                         <div className="flex items-center justify-between mb-8">
                                                             <div>
-                                                                <h2 className="text-3xl font-black text-slate-900">Meu Armazenamento</h2>
-                                                                <p className="text-slate-500">Acesse seus arquivos por categoria</p>
+                                                                <h2 className="text-3xl font-black text-slate-900 dark:text-white">Meu Armazenamento</h2>
+                                                                <p className="text-slate-500 dark:text-slate-400">Acesse seus arquivos por categoria</p>
                                                             </div>
                                                         </div>
+
+                                                        {/* Global Storage Summary Bar */}
+                                                        {storageStats?.global && (
+                                                            <motion.div
+                                                                initial={{ opacity: 0, scale: 0.95 }}
+                                                                animate={{ opacity: 1, scale: 1 }}
+                                                                className="mb-10 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[32px] p-8 shadow-xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden group"
+                                                            >
+                                                                <div className="relative z-10">
+                                                                    <div className="flex items-center justify-between mb-4">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                                                                <HardDrive size={24} />
+                                                                            </div>
+                                                                            <div>
+                                                                                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Cloud Local Ilimitada</h3>
+                                                                                <p className="text-xs text-slate-500 dark:text-slate-400">Total acumulado de todos os discos</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <span className="text-2xl font-black text-blue-600">{storageStats.global.percent}%</span>
+                                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Capacidade em Uso</p>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="w-full h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                                                                        <motion.div
+                                                                            initial={{ width: 0 }}
+                                                                            animate={{ width: `${storageStats.global.percent}%` }}
+                                                                            transition={{ duration: 1.5, ease: "easeOut" }}
+                                                                            className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-600 relative"
+                                                                        >
+                                                                            <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                                                                        </motion.div>
+                                                                    </div>
+
+                                                                    <div className="mt-4 flex items-center justify-between text-sm">
+                                                                        <div className="flex items-center gap-4">
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Usado</span>
+                                                                                <span className="font-bold text-slate-700 dark:text-slate-300">{formatBytes(storageStats.global.used)}</span>
+                                                                            </div>
+                                                                            <div className="h-8 w-px bg-slate-100 dark:bg-slate-800" />
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Disponível</span>
+                                                                                <span className="font-bold text-slate-700 dark:text-slate-300">{formatBytes(storageStats.global.total - storageStats.global.used)}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex flex-col text-right">
+                                                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Capacidade Total</span>
+                                                                            <span className="font-bold text-blue-600">{formatBytes(storageStats.global.total)}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Decorative mesh */}
+                                                                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -mr-32 -mt-32" />
+                                                                <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/5 rounded-full blur-3xl -ml-24 -mb-24" />
+                                                            </motion.div>
+                                                        )}
                                                         <motion.div
                                                             variants={staggerContainer}
                                                             initial="hidden"
@@ -724,8 +802,8 @@ export default function Dashboard() {
                                                     <section>
                                                         <div className="flex items-center justify-between mb-8">
                                                             <div>
-                                                                <h2 className="text-3xl font-black text-slate-900">Arquivos Rápidos</h2>
-                                                                <p className="text-slate-500">Itens encontrados no diretório pessoal</p>
+                                                                <h2 className="text-3xl font-black text-slate-900 dark:text-white">Arquivos Rápidos</h2>
+                                                                <p className="text-slate-500 dark:text-slate-400">Itens encontrados no diretório pessoal</p>
                                                             </div>
                                                         </div>
                                                         <FileGrid
@@ -828,22 +906,22 @@ const LoadingSkeleton: React.FC = () => {
         <div className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="bg-white rounded-2xl p-6 shadow-lg">
-                        <div className="skeleton w-14 h-14 rounded-xl mb-4" />
-                        <div className="skeleton w-32 h-6 mb-2" />
-                        <div className="skeleton w-24 h-4 mb-1" />
-                        <div className="skeleton w-28 h-4" />
+                    <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg border border-transparent dark:border-slate-800">
+                        <div className="skeleton dark:bg-slate-800 w-14 h-14 rounded-xl mb-4" />
+                        <div className="skeleton dark:bg-slate-800 w-32 h-6 mb-2" />
+                        <div className="skeleton dark:bg-slate-800 w-24 h-4 mb-1" />
+                        <div className="skeleton dark:bg-slate-800 w-28 h-4" />
                     </div>
                 ))}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {[1, 2, 3, 4, 5, 6].map(i => (
-                    <div key={i} className="bg-white rounded-xl p-4 shadow-md">
+                    <div key={i} className="bg-white dark:bg-slate-900 rounded-xl p-4 shadow-md border border-transparent dark:border-slate-800">
                         <div className="flex items-start gap-3">
-                            <div className="skeleton w-12 h-12 rounded-lg" />
+                            <div className="skeleton dark:bg-slate-800 w-12 h-12 rounded-lg" />
                             <div className="flex-1">
-                                <div className="skeleton w-full h-4 mb-2" />
-                                <div className="skeleton w-24 h-3" />
+                                <div className="skeleton dark:bg-slate-800 w-full h-4 mb-2" />
+                                <div className="skeleton dark:bg-slate-800 w-24 h-3" />
                             </div>
                         </div>
                     </div>
