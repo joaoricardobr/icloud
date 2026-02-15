@@ -29,9 +29,9 @@ const updateBaseURL = async (retryCount = 0) => {
         if (configDoc.exists()) {
             const data = configDoc.data();
             if (data.baseUrl) {
-                // Ensure URL ends with /api/cloud if not present, or just use as is if logic dictates
-                // The fs update script saves full url with /api/cloud, so we assume it's correct.
-                api.defaults.baseURL = data.baseUrl;
+                let url = data.baseUrl;
+                if (!url.endsWith('/')) url += '/';
+                api.defaults.baseURL = url;
                 console.log("✅ CloudDesk API URL dinâmica carregada do Firestore:", api.defaults.baseURL);
                 return;
             }

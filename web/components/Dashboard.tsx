@@ -127,7 +127,7 @@ export default function Dashboard() {
             if (category) params.append('category', category);
 
             // Set timeout to avoid long hangs
-            const response = await api.get(`/files?${params.toString()}`, { timeout: 10000 });
+            const response = await api.get(`files?${params.toString()}`, { timeout: 10000 });
             const data = response.data;
 
             const filesData = data.files || [];
@@ -144,6 +144,8 @@ export default function Dashboard() {
             setCache(cacheKey, data);
 
             if (!mode && !category) {
+                // Path already set optimistically in navigateTo, 
+                // but we ensure it matches the actual fetched path here.
                 setCurrentPath(path);
             }
 
@@ -160,7 +162,7 @@ export default function Dashboard() {
             setLoading(false);
             setIsRefreshing(false);
         }
-    }, [files.length, disks.length]);
+    }, []); // Removed files.length/disks.length to stop the infinite loop
 
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
@@ -250,7 +252,7 @@ export default function Dashboard() {
         if (selectedPaths.length === 0) return;
 
         try {
-            const response = await api.post('/download-zip', { paths: selectedPaths }, {
+            const response = await api.post('download-zip', { paths: selectedPaths }, {
                 responseType: 'blob'
             });
 
@@ -306,7 +308,7 @@ export default function Dashboard() {
         }
 
         try {
-            await api.post("/upload", formData, {
+            await api.post("upload", formData, {
                 headers: { "Content-Type": "multipart/form-data" }
             });
             fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
@@ -328,7 +330,7 @@ export default function Dashboard() {
         if (!name) return;
 
         try {
-            await api.post("/create-folder", { path, name });
+            await api.post("create-folder", { path, name });
             fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
         } catch (err: any) {
             alert("Erro ao criar pasta: " + (err.response?.data?.error || err.message));
@@ -337,7 +339,7 @@ export default function Dashboard() {
 
     const handleToggleFavorite = async (file: FileItem) => {
         try {
-            await api.post("/favorite", { path: file.path });
+            await api.post("favorite", { path: file.path });
             // Refresh current view
             fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
         } catch (err: any) {
@@ -349,7 +351,7 @@ export default function Dashboard() {
         if (activeView === "trash") {
             if (!confirm(`Tem certeza que deseja excluir "${file.name}" PERMANENTEMENTE? Esta ação não pode ser desfeita.`)) return;
             try {
-                await api.post("/permanent-delete", { path: file.path });
+                await api.post("permanent-delete", { path: file.path });
                 fetchData("", "trash");
             } catch (err: any) {
                 alert("Erro ao excluir permanentemente: " + (err.response?.data?.error || err.message));
@@ -360,7 +362,7 @@ export default function Dashboard() {
         if (!confirm(`Tem certeza que deseja mover "${file.name}" para a lixeira?`)) return;
 
         try {
-            await api.delete("/delete", { data: { path: file.path } });
+            await api.delete("delete", { data: { path: file.path } });
             fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
         } catch (err: any) {
             alert("Erro ao excluir: " + (err.response?.data?.error || err.message));
@@ -371,7 +373,7 @@ export default function Dashboard() {
         if (!confirm("Tem certeza que deseja ESVAZIAR A LIXEIRA? Todos os itens serão apagados permanentemente.")) return;
 
         try {
-            await api.post("/empty-trash");
+            await api.post("empty-trash");
             fetchData("", "trash");
         } catch (err: any) {
             alert("Erro ao esvaziar lixeira: " + (err.response?.data?.error || err.message));
@@ -511,27 +513,19 @@ export default function Dashboard() {
     };
 
     const handleLogout = async () => {
-        await api.post("/logout").catch(() => { }); // Optional
+        await api.post("logout").catch(() => { }); // Optional
         await signOut(auth);
         window.location.href = "/";
     };
 
     // Initial load and SSE Connection
     useEffect(() => {
-        // Wait for API URL to be ready (from Firestore/Localhost discovery)
-        const waitForApi = setInterval(() => {
-            if (api.defaults.baseURL && api.defaults.baseURL !== "") {
-                clearInterval(waitForApi);
-                console.log("🚀 API Ready:", api.defaults.baseURL);
-                fetchData();
-                setupSSE();
-            }
-        }, 100);
-
         let eventSource: EventSource | null = null;
+        let waitForApi: NodeJS.Timeout | null = null;
 
         const setupSSE = () => {
-            // Connect to SSE for automatic disk detection
+            if (eventSource) eventSource.close();
+            console.log("🔌 Connecting SSE:", `${api.defaults.baseURL}/events`);
             eventSource = new EventSource(`${api.defaults.baseURL}/events`);
 
             eventSource.onmessage = (event) => {
@@ -552,15 +546,24 @@ export default function Dashboard() {
             };
         };
 
+        // Wait for API URL to be ready (from Firestore/Localhost discovery)
+        waitForApi = setInterval(() => {
+            if (api.defaults.baseURL && api.defaults.baseURL !== "") {
+                if (waitForApi) clearInterval(waitForApi);
+                console.log("🚀 API Ready (Effect):", api.defaults.baseURL);
+                fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
+                setupSSE();
+            }
+        }, 100);
+
         // Automatic refresh every 5 minutes if window is focused (fallback)
-        const interval = setInterval(() => {
+        const refreshInterval = setInterval(() => {
             if (document.visibilityState === 'visible' && api.defaults.baseURL) {
                 console.log("🔄 Auto-refreshing connectivity...");
                 handleRefresh();
             }
         }, 5 * 60 * 1000);
 
-        // Also refresh when tab becomes visible again
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible' && api.defaults.baseURL) {
                 handleRefresh();
@@ -570,21 +573,22 @@ export default function Dashboard() {
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
-            clearInterval(waitForApi);
+            if (waitForApi) clearInterval(waitForApi);
             if (eventSource) eventSource.close();
-            clearInterval(interval);
+            clearInterval(refreshInterval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [fetchData, handleRefresh]);
+        // Removed fetchData and handleRefresh from deps to prevent re-running on every file/disk change
+    }, [currentPath, activeView, activeCategory]);
 
     // Check Server Status
     useEffect(() => {
+        let statusInterval: NodeJS.Timeout | null = null;
+
         const checkStatus = async () => {
-            if (!api.defaults.baseURL) return; // Wait for API
+            if (!api.defaults.baseURL) return;
 
             try {
-                // Short timeout to detect offline quickly
-                // Use fetch to bypass axios baseURL which includes /api/cloud
                 const baseUrl = api.defaults.baseURL?.replace('/api/cloud', '') || '';
                 if (baseUrl) {
                     const controller = new AbortController();
@@ -595,7 +599,6 @@ export default function Dashboard() {
                         clearTimeout(timeoutId);
                     }
                 } else {
-                    // Fallback if no base URL yet
                     await api.get('/', { timeout: 2000 });
                 }
                 setServerStatus("online");
@@ -605,20 +608,18 @@ export default function Dashboard() {
             }
         };
 
-        // Poll for API ready then start checking status
-        const waitForApiStatus = setInterval(() => {
+        const initStatus = setInterval(() => {
             if (api.defaults.baseURL) {
+                clearInterval(initStatus);
                 checkStatus();
-                clearInterval(waitForApiStatus);
-                // Start regular interval
-                const interval = setInterval(checkStatus, 10000);
-                // Cleanup inside the closure is tricky, relying on component unmount
-                // Better approach: move interval to a ref or just let the main return handle it?
-                // For simplicity, we restart the interval logic in a cleaner way below
+                statusInterval = setInterval(checkStatus, 15000);
             }
-        }, 500);
+        }, 1000);
 
-        return () => clearInterval(waitForApiStatus);
+        return () => {
+            clearInterval(initStatus);
+            if (statusInterval) clearInterval(statusInterval);
+        };
     }, []);
 
     return (
