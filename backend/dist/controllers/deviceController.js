@@ -42,58 +42,56 @@ const validatePath = (targetPath) => {
     }
     return absolutePath;
 };
-// Scan directory for files by category (Recursion with strict limits)
-const scanDirectoryForCategory = (dirPath, category, maxFiles = 500, depth = 0) => {
+// Helper to check access asynchronously
+const checkAccess = async (dirPath) => {
+    try {
+        await fs_1.default.promises.access(dirPath, fs_1.default.constants.R_OK);
+        return true;
+    }
+    catch {
+        return false;
+    }
+};
+// Scan directory for files by category (Async Recursion with strict limits)
+const scanDirectoryForCategory = async (dirPath, category, maxFiles = 500, depth = 0) => {
     // Increased maxFiles and depth slightly for better results
     if (depth > 5 || maxFiles <= 0)
         return [];
-    try {
-        if (!fs_1.default.existsSync(dirPath))
-            return [];
-    }
-    catch (e) {
-        return [];
-    }
     // STRICT IGNORE LIST - Vital for preventing Permission Denied errors and hanging
-    // Uses global IGNORED_DIRS
     if (IGNORED_DIRS.some(ignored => dirPath.includes(path_1.default.sep + ignored) || dirPath.endsWith(path_1.default.sep + ignored))) {
         return [];
     }
     const results = [];
     const extensions = FILE_CATEGORIES[category];
     try {
-        // Check access before reading
-        try {
-            fs_1.default.accessSync(dirPath, fs_1.default.constants.R_OK);
-        }
-        catch (e) {
-            return []; // Skip if no read permission
-        }
-        const items = fs_1.default.readdirSync(dirPath);
+        if (!(await checkAccess(dirPath)))
+            return [];
+        const items = await fs_1.default.promises.readdir(dirPath, { withFileTypes: true });
         for (const item of items) {
             // Skip hidden and system folders
-            if (item.startsWith('.'))
+            if (item.name.startsWith('.'))
                 continue;
-            if (IGNORED_DIRS.includes(item))
+            if (IGNORED_DIRS.includes(item.name))
                 continue;
-            const itemPath = path_1.default.join(dirPath, item);
+            const itemPath = path_1.default.join(dirPath, item.name);
             try {
-                // Check if it's a symlink to avoid loops
-                const lstat = fs_1.default.lstatSync(itemPath);
-                if (lstat.isSymbolicLink())
+                if (item.isSymbolicLink())
                     continue;
-                const stats = fs_1.default.statSync(itemPath);
-                if (stats.isDirectory()) {
+                if (item.isDirectory()) {
                     // Recursively scan subdirectories
-                    const subResults = scanDirectoryForCategory(itemPath, category, maxFiles - results.length, depth + 1);
+                    // We await here to respect the limit, but this could be parallelized if needed
+                    // For now, sequential is safer to avoid overwhelming the IO
+                    const subResults = await scanDirectoryForCategory(itemPath, category, maxFiles - results.length, depth + 1);
                     results.push(...subResults);
                 }
-                else {
+                else if (item.isFile()) {
                     // Check if file matches category
-                    const ext = path_1.default.extname(item).toLowerCase();
+                    const ext = path_1.default.extname(item.name).toLowerCase();
                     if (extensions.includes(ext)) {
+                        // Get stats asynchronously only for matching files
+                        const stats = await fs_1.default.promises.stat(itemPath);
                         results.push({
-                            name: item,
+                            name: item.name,
                             path: itemPath,
                             size: stats.size,
                             isDirectory: false,
@@ -118,7 +116,7 @@ const scanDirectoryForCategory = (dirPath, category, maxFiles = 500, depth = 0) 
     }
     return results;
 };
-// Get category statistics across all disks
+// Get category statistics across all disks (Async)
 const getCategoryStats = async (disks) => {
     const stats = {
         imagens: { count: 0, size: 0, files: [] },
@@ -140,17 +138,16 @@ const getCategoryStats = async (disks) => {
         for (const folder of commonFolders) {
             const folderPath = isSystem ? path_1.default.join(HOME_DIR, folder) : path_1.default.join(disk.mount, folder);
             try {
-                if (fs_1.default.existsSync(folderPath)) {
-                    for (const category of Object.keys(FILE_CATEGORIES)) {
-                        // Scan logic per category
-                        const fileExts = FILE_CATEGORIES[category];
-                        // Heuristic: only scan likely folders for speed? No, scan all common folders for all types.
-                        // But we limit depth and count to avoid hanging.
-                        const files = scanDirectoryForCategory(folderPath, category, 100); // increased limit
-                        stats[category].files.push(...files);
-                        stats[category].count += files.length;
-                        stats[category].size += files.reduce((sum, f) => sum + f.size, 0);
-                    }
+                if (fs_1.default.existsSync(folderPath)) { // Sync check is fine for existence of known paths
+                    // Use Promise.all to scan categories in parallel for this folder
+                    await Promise.all(Object.keys(FILE_CATEGORIES).map(async (category) => {
+                        const files = await scanDirectoryForCategory(folderPath, category, 100);
+                        if (files.length > 0) {
+                            stats[category].files.push(...files);
+                            stats[category].count += files.length;
+                            stats[category].size += files.reduce((sum, f) => sum + f.size, 0);
+                        }
+                    }));
                 }
             }
             catch (e) {
@@ -286,18 +283,22 @@ const getFiles = async (req, res) => {
                 path_1.default.join(HOME_DIR, 'Vídeos')
             ];
             for (const dir of scanDirs) {
-                if (fs_1.default.existsSync(dir)) {
-                    try {
-                        const items = fs_1.default.readdirSync(dir);
+                try {
+                    const dirStats = await checkAccess(dir);
+                    if (dirStats) {
+                        const items = await fs_1.default.promises.readdir(dir, { withFileTypes: true });
+                        let count = 0;
                         for (const item of items) {
-                            if (item.startsWith('.'))
+                            if (count > 100)
+                                break;
+                            if (item.name.startsWith('.'))
                                 continue;
-                            const itemPath = path_1.default.join(dir, item);
-                            try {
-                                const stats = fs_1.default.statSync(itemPath);
-                                if (!stats.isDirectory()) {
+                            const itemPath = path_1.default.join(dir, item.name);
+                            if (item.isFile()) {
+                                try {
+                                    const stats = await fs_1.default.promises.stat(itemPath);
                                     metadata.push({
-                                        name: item,
+                                        name: item.name,
                                         path: itemPath,
                                         size: stats.size,
                                         isDirectory: false,
@@ -305,13 +306,14 @@ const getFiles = async (req, res) => {
                                         isFavorite: favoritePaths.has(itemPath),
                                         diskLabel: 'Recente'
                                     });
+                                    count++;
                                 }
+                                catch (e) { }
                             }
-                            catch (e) { }
                         }
                     }
-                    catch (e) { }
                 }
+                catch (e) { }
             }
             metadata = metadata.sort((a, b) => b.mtime.getTime() - a.mtime.getTime()).slice(0, 50);
         }
@@ -319,21 +321,24 @@ const getFiles = async (req, res) => {
         else if (mode === 'favorites') {
             try {
                 const favs = await firebase_1.db.collection('favorites').get();
-                for (const doc of favs.docs) {
+                await Promise.all(favs.docs.map(async (doc) => {
                     const filePath = doc.data().path;
-                    if (fs_1.default.existsSync(filePath)) {
-                        const stats = fs_1.default.statSync(filePath);
-                        metadata.push({
-                            name: path_1.default.basename(filePath),
-                            path: filePath,
-                            size: stats.size,
-                            isDirectory: stats.isDirectory(),
-                            mtime: stats.mtime,
-                            isFavorite: true,
-                            diskLabel: 'Favorito'
-                        });
+                    try {
+                        if (await checkAccess(filePath)) {
+                            const stats = await fs_1.default.promises.stat(filePath);
+                            metadata.push({
+                                name: path_1.default.basename(filePath),
+                                path: filePath,
+                                size: stats.size,
+                                isDirectory: stats.isDirectory(),
+                                mtime: stats.mtime,
+                                isFavorite: true,
+                                diskLabel: 'Favorito'
+                            });
+                        }
                     }
-                }
+                    catch (e) { }
+                }));
             }
             catch (e) {
                 console.error('[Favorites] Error:', e);
@@ -341,13 +346,13 @@ const getFiles = async (req, res) => {
         }
         // MODE: Trash
         else if (mode === 'trash') {
-            if (fs_1.default.existsSync(TRASH_DIR)) {
+            if (await checkAccess(TRASH_DIR)) {
                 try {
-                    const items = fs_1.default.readdirSync(TRASH_DIR);
-                    metadata = items.map(item => {
+                    const items = await fs_1.default.promises.readdir(TRASH_DIR);
+                    const promised = await Promise.all(items.map(async (item) => {
                         const itemPath = path_1.default.join(TRASH_DIR, item);
                         try {
-                            const stats = fs_1.default.statSync(itemPath);
+                            const stats = await fs_1.default.promises.stat(itemPath);
                             return {
                                 name: item,
                                 path: itemPath,
@@ -361,7 +366,8 @@ const getFiles = async (req, res) => {
                         catch (e) {
                             return null;
                         }
-                    }).filter(i => i !== null);
+                    }));
+                    metadata = promised.filter(i => i !== null);
                 }
                 catch (e) {
                     console.error('[Trash] Error:', e);
@@ -396,8 +402,8 @@ const getFiles = async (req, res) => {
                 // Find first existing path
                 for (const p of f.possiblePaths) {
                     const fullPath = path_1.default.join(HOME_DIR, p);
-                    if (fs_1.default.existsSync(fullPath)) {
-                        const stats = fs_1.default.statSync(fullPath);
+                    try {
+                        const stats = await fs_1.default.promises.stat(fullPath);
                         metadata.unshift({
                             name: f.name,
                             path: fullPath,
@@ -407,21 +413,22 @@ const getFiles = async (req, res) => {
                             isFavorite: favoritePaths.has(fullPath),
                             diskLabel: 'Home'
                         });
-                        break; // Found one, stop looking for this type
+                        break; // Found one
+                    }
+                    catch (e) {
+                        continue;
                     }
                 }
             }
             // 3. Add Uploads Online folder
             const uploadsOnline = path_1.default.join(HOME_DIR, 'Transferências', 'Uploads Online');
-            if (!fs_1.default.existsSync(uploadsOnline)) {
+            try {
                 // Try create only if parent exists, else skip to avoid errors
-                try {
-                    fs_1.default.mkdirSync(uploadsOnline, { recursive: true });
-                }
-                catch (e) { }
+                await fs_1.default.promises.mkdir(uploadsOnline, { recursive: true }).catch(() => { });
             }
-            if (fs_1.default.existsSync(uploadsOnline)) {
-                const uploadsStats = fs_1.default.statSync(uploadsOnline);
+            catch (e) { }
+            try {
+                const uploadsStats = await fs_1.default.promises.stat(uploadsOnline);
                 metadata.unshift({
                     name: 'Uploads Online 🏠',
                     path: uploadsOnline,
@@ -432,21 +439,25 @@ const getFiles = async (req, res) => {
                     diskLabel: 'Home'
                 });
             }
+            catch (e) { }
         }
         // REAL DIRECTORY LISTING
         else {
             const targetDir = validatePath(queryPath);
-            if (!fs_1.default.existsSync(targetDir)) {
+            try {
+                await fs_1.default.promises.access(targetDir, fs_1.default.constants.F_OK);
+            }
+            catch (e) {
                 return res.status(404).json({ error: 'Directory not found' });
             }
-            const stats = fs_1.default.statSync(targetDir);
+            const stats = await fs_1.default.promises.stat(targetDir);
             if (!stats.isDirectory()) {
                 return res.status(400).json({ error: 'Path is not a directory' });
             }
             // Read real directory contents
             let items = [];
             try {
-                items = fs_1.default.readdirSync(targetDir);
+                items = await fs_1.default.promises.readdir(targetDir, { withFileTypes: true });
             }
             catch (e) {
                 console.error(`[Readdir] Error reading ${targetDir}:`, e);
@@ -462,29 +473,34 @@ const getFiles = async (req, res) => {
                 });
             }
             // Convert to metadata
-            for (const item of items) {
+            const promisedItems = await Promise.all(items.map(async (item) => {
                 // Skip hidden files unless explicitly requested
-                if (item.startsWith('.'))
-                    continue;
-                if (IGNORED_DIRS.includes(item))
-                    continue;
-                const itemPath = path_1.default.join(targetDir, item);
+                if (item.name.startsWith('.'))
+                    return null;
+                if (IGNORED_DIRS.includes(item.name))
+                    return null;
+                const itemPath = path_1.default.join(targetDir, item.name);
                 try {
-                    const itemStats = fs_1.default.statSync(itemPath);
-                    metadata.push({
-                        name: item,
+                    // With File Types, check if symbolic link
+                    if (item.isSymbolicLink())
+                        return null;
+                    const itemStats = await fs_1.default.promises.stat(itemPath);
+                    return {
+                        name: item.name,
                         path: itemPath,
                         size: itemStats.size,
                         isDirectory: itemStats.isDirectory(),
                         mtime: itemStats.mtime,
                         isFavorite: favoritePaths.has(itemPath),
                         diskLabel: path_1.default.basename(targetDir)
-                    });
+                    };
                 }
                 catch (e) {
                     console.error(`[Stat] Error on ${itemPath}:`, e);
+                    return null;
                 }
-            }
+            }));
+            metadata = promisedItems.filter(Boolean);
         }
         // Calculate storage stats for current path
         let storageStats = {

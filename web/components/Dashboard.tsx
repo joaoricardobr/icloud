@@ -98,20 +98,36 @@ export default function Dashboard() {
         // Flicker Fix: If we already have some data, don't show full loading screen
         const hasData = files.length > 0 || disks.length > 0;
 
+        // 1. Try Load from Cache First (Offline Support)
         if (!hasData) {
             setLoading(true);
+            try {
+                const cachedData = await getCache(cacheKey);
+                if (cachedData) {
+                    setFiles(cachedData.files || []);
+                    setDisks(cachedData.stats?.allDisks || []);
+                    setCategoryStats(cachedData.stats?.categories || null);
+                    setStorageStats(cachedData.stats);
+                    setLoading(false); // Show cached content immediately
+                    console.log("Loaded from cache:", cacheKey);
+                }
+            } catch (e) {
+                console.error("Cache load error:", e);
+            }
         } else {
             setIsRefreshing(true);
         }
 
         setError("");
+
         try {
             const params = new URLSearchParams();
             if (mode) params.append('mode', mode);
             if (path) params.append('path', path);
             if (category) params.append('category', category);
 
-            const response = await api.get(`/files?${params.toString()}`);
+            // Set timeout to avoid long hangs
+            const response = await api.get(`/files?${params.toString()}`, { timeout: 10000 });
             const data = response.data;
 
             const filesData = data.files || [];
@@ -122,6 +138,7 @@ export default function Dashboard() {
             setDisks(disksData);
             setCategoryStats(categoriesData);
             setStorageStats(data.stats);
+            setServerStatus("online");
 
             // Save to cache
             setCache(cacheKey, data);
@@ -130,11 +147,15 @@ export default function Dashboard() {
                 setCurrentPath(path);
             }
 
-            // Re-fetch global storage if needed
-            // (The backend now returns storageStats.global)
         } catch (err) {
             console.error("[Dashboard] Error fetching files:", err);
-            setError("Erro ao conectar com o servidor.");
+            // Only show error if we have NO data (live or cached)
+            if (files.length === 0 && disks.length === 0) {
+                // Double check if cache failed too (inner check above handles it, but maybe cache was empty)
+                // We try to get cache one last time if we haven't already? No, we did.
+                setError("Não foi possível conectar ao servidor. Verifique se o backend está rodando.");
+            }
+            setServerStatus("offline");
         } finally {
             setLoading(false);
             setIsRefreshing(false);
