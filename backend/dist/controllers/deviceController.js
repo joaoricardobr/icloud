@@ -22,6 +22,13 @@ const FILE_CATEGORIES = {
     musicas: ['.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac', '.wma', '.opus'],
     documentos: ['.pdf', '.doc', '.docx', '.txt', '.xlsx', '.pptx', '.csv', '.rtf', '.odt']
 };
+// STRICT IGNORE LIST - Vital for preventing Permission Denied errors and hanging
+const IGNORED_DIRS = [
+    'node_modules', 'snap', 'System Volume Information', '$RECYCLE.BIN', 'Config.Msi',
+    'Windows', 'Program Files', 'Program Files (x86)', 'AppData', 'Application Data',
+    'boot', 'dev', 'etc', 'lib', 'lib64', 'lost+found', 'mnt', 'opt', 'proc', 'root',
+    'run', 'sbin', 'srv', 'sys', 'tmp', 'usr', 'var', 'bin', '.cache', '.npm', '.dbus', '.local'
+];
 // Helper to validate and sanitize paths - Security Hardening
 const validatePath = (targetPath) => {
     if (!targetPath || targetPath === '')
@@ -38,21 +45,30 @@ const validatePath = (targetPath) => {
 // Scan directory for files by category (Recursion with strict limits)
 const scanDirectoryForCategory = (dirPath, category, maxFiles = 500, depth = 0) => {
     // Increased maxFiles and depth slightly for better results
-    if (depth > 5 || maxFiles <= 0 || !fs_1.default.existsSync(dirPath))
+    if (depth > 5 || maxFiles <= 0)
         return [];
+    try {
+        if (!fs_1.default.existsSync(dirPath))
+            return [];
+    }
+    catch (e) {
+        return [];
+    }
     // STRICT IGNORE LIST - Vital for preventing Permission Denied errors and hanging
-    const IGNORED_DIRS = [
-        'node_modules', 'snap', 'System Volume Information', '$RECYCLE.BIN', 'Config.Msi',
-        'Windows', 'Program Files', 'Program Files (x86)', 'AppData', 'Application Data',
-        'boot', 'dev', 'etc', 'lib', 'lib64', 'lost+found', 'mnt', 'opt', 'proc', 'root',
-        'run', 'sbin', 'srv', 'sys', 'tmp', 'usr', 'var', 'bin'
-    ];
+    // Uses global IGNORED_DIRS
     if (IGNORED_DIRS.some(ignored => dirPath.includes(path_1.default.sep + ignored) || dirPath.endsWith(path_1.default.sep + ignored))) {
         return [];
     }
     const results = [];
     const extensions = FILE_CATEGORIES[category];
     try {
+        // Check access before reading
+        try {
+            fs_1.default.accessSync(dirPath, fs_1.default.constants.R_OK);
+        }
+        catch (e) {
+            return []; // Skip if no read permission
+        }
         const items = fs_1.default.readdirSync(dirPath);
         for (const item of items) {
             // Skip hidden and system folders
@@ -449,6 +465,8 @@ const getFiles = async (req, res) => {
             for (const item of items) {
                 // Skip hidden files unless explicitly requested
                 if (item.startsWith('.'))
+                    continue;
+                if (IGNORED_DIRS.includes(item))
                     continue;
                 const itemPath = path_1.default.join(targetDir, item);
                 try {

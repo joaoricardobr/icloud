@@ -37,14 +37,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.admin = exports.db = void 0;
-const path_1 = __importDefault(require("path"));
+const path = __importStar(require("path"));
 const admin = __importStar(require("firebase-admin"));
 exports.admin = admin;
 const firestore_1 = require("firebase-admin/firestore");
 const dotenv_1 = __importDefault(require("dotenv"));
 const fs_1 = __importDefault(require("fs"));
 dotenv_1.default.config();
-const serviceAccountPath = path_1.default.join(__dirname, '..', '..', 'service-account.json');
+const serviceAccountPath = path.join(__dirname, '..', '..', 'service-account.json');
 const serviceAccountExists = fs_1.default.existsSync(serviceAccountPath);
 if (!admin.apps.length) {
     if (serviceAccountExists) {

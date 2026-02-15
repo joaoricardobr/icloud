@@ -127,6 +127,21 @@ app.use('/api/cloud', deviceRoutes_1.default); // Professional endpoint naming
 app.get('/', (req, res) => {
     res.json({ status: 'CloudDesk Professional Backend 🚀', clients: clients.length });
 });
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Professional Backend listening on port ${PORT}`);
 });
+// Graceful shutdown
+const gracefulShutdown = () => {
+    console.log('Received kill signal, shutting down gracefully');
+    server.close(() => {
+        console.log('Closed out remaining connections');
+        process.exit(0);
+    });
+    // Force close if it takes too long
+    setTimeout(() => {
+        console.error('Could not close connections in time, forcefully shutting down');
+        process.exit(1);
+    }, 10000);
+};
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);

@@ -26,8 +26,7 @@ module.exports = {
         },
         {
             name: "clouddesk-tunnel",
-            script: "./cloudflared",
-            args: "tunnel --url http://localhost:3001",
+            script: "./start-tunnel.sh",
             restart_delay: 5000,
             max_restarts: 50
         }
