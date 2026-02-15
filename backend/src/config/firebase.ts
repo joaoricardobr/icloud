@@ -1,4 +1,4 @@
-import path from 'path';
+import * as path from 'path';
 import * as admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import dotenv from 'dotenv';

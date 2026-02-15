@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.downloadZip = exports.emptyTrash = exports.getLogs = exports.permanentDelete = exports.getThumbnail = exports.createFolder = exports.deleteFile = exports.uploadFile = exports.downloadFile = exports.getFiles = void 0;
+exports.downloadZip = exports.emptyTrash = exports.getLogs = exports.permanentDelete = exports.getThumbnail = exports.createFolder = exports.deleteFile = exports.uploadFile = exports.downloadFile = exports.getFiles = exports.getSystemStats = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const firebase_1 = require("../config/firebase");
@@ -36,20 +36,36 @@ const validatePath = (targetPath) => {
     return absolutePath;
 };
 // Scan directory for files by category (Recursion with strict limits)
-const scanDirectoryForCategory = (dirPath, category, maxFiles = 50, depth = 0) => {
+const scanDirectoryForCategory = (dirPath, category, maxFiles = 500, depth = 0) => {
     // Increased maxFiles and depth slightly for better results
-    if (depth > 3 || maxFiles <= 0 || !fs_1.default.existsSync(dirPath))
+    if (depth > 5 || maxFiles <= 0 || !fs_1.default.existsSync(dirPath))
         return [];
+    // STRICT IGNORE LIST - Vital for preventing Permission Denied errors and hanging
+    const IGNORED_DIRS = [
+        'node_modules', 'snap', 'System Volume Information', '$RECYCLE.BIN', 'Config.Msi',
+        'Windows', 'Program Files', 'Program Files (x86)', 'AppData', 'Application Data',
+        'boot', 'dev', 'etc', 'lib', 'lib64', 'lost+found', 'mnt', 'opt', 'proc', 'root',
+        'run', 'sbin', 'srv', 'sys', 'tmp', 'usr', 'var', 'bin'
+    ];
+    if (IGNORED_DIRS.some(ignored => dirPath.includes(path_1.default.sep + ignored) || dirPath.endsWith(path_1.default.sep + ignored))) {
+        return [];
+    }
     const results = [];
     const extensions = FILE_CATEGORIES[category];
     try {
         const items = fs_1.default.readdirSync(dirPath);
         for (const item of items) {
             // Skip hidden and system folders
-            if (item.startsWith('.') || item === 'node_modules' || item === 'snap' || item === 'System Volume Information')
+            if (item.startsWith('.'))
+                continue;
+            if (IGNORED_DIRS.includes(item))
                 continue;
             const itemPath = path_1.default.join(dirPath, item);
             try {
+                // Check if it's a symlink to avoid loops
+                const lstat = fs_1.default.lstatSync(itemPath);
+                if (lstat.isSymbolicLink())
+                    continue;
                 const stats = fs_1.default.statSync(itemPath);
                 if (stats.isDirectory()) {
                     // Recursively scan subdirectories
@@ -100,7 +116,8 @@ const getCategoryStats = async (disks) => {
         'Vídeos', 'Videos', 'Filmes', 'Movies',
         'Música', 'Music', 'Músicas', 'Songs',
         'Documentos', 'Documents', 'Docs', 'Papers',
-        'Downloads', 'Transferências', 'Download'
+        'Downloads', 'Transferências', 'Download',
+        'Desktop', 'Área de Trabalho'
     ];
     for (const disk of disks) {
         const isSystem = disk.mount === '/';
@@ -113,7 +130,7 @@ const getCategoryStats = async (disks) => {
                         const fileExts = FILE_CATEGORIES[category];
                         // Heuristic: only scan likely folders for speed? No, scan all common folders for all types.
                         // But we limit depth and count to avoid hanging.
-                        const files = scanDirectoryForCategory(folderPath, category, 20); // increased limit
+                        const files = scanDirectoryForCategory(folderPath, category, 100); // increased limit
                         stats[category].files.push(...files);
                         stats[category].count += files.length;
                         stats[category].size += files.reduce((sum, f) => sum + f.size, 0);
@@ -127,6 +144,43 @@ const getCategoryStats = async (disks) => {
     }
     return stats;
 };
+const getSystemStats = async (req, res) => {
+    try {
+        const [cpu, mem, osInfo, currentLoad] = await Promise.all([
+            systeminformation_1.default.cpu(),
+            systeminformation_1.default.mem(),
+            systeminformation_1.default.osInfo(),
+            systeminformation_1.default.currentLoad()
+        ]);
+        res.json({
+            cpu: {
+                manufacturer: cpu.manufacturer,
+                brand: cpu.brand,
+                speed: cpu.speed,
+                cores: cpu.cores,
+                load: Math.round(currentLoad.currentLoad)
+            },
+            memory: {
+                total: mem.total,
+                free: mem.free,
+                used: mem.used,
+                active: mem.active,
+                available: mem.available
+            },
+            os: {
+                platform: osInfo.platform,
+                distro: osInfo.distro,
+                release: osInfo.release,
+                hostname: osInfo.hostname
+            }
+        });
+    }
+    catch (error) {
+        console.error('[SystemStats] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+exports.getSystemStats = getSystemStats;
 // Get real disk information and files
 const getFiles = async (req, res) => {
     try {

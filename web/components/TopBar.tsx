@@ -50,7 +50,9 @@ interface TopBarProps {
     onRefresh?: () => void;
     isRefreshing?: boolean;
     onThemeToggle?: () => void;
+    onThemeToggle?: () => void;
     theme?: "light" | "dark";
+    serverStatus?: "online" | "offline" | "checking";
 }
 
 export default function TopBar({
@@ -75,7 +77,8 @@ export default function TopBar({
     onRefresh,
     isRefreshing = false,
     onThemeToggle,
-    theme = "light"
+    theme = "light",
+    serverStatus = "checking"
 }: TopBarProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showFilters, setShowFilters] = useState(false);
@@ -148,6 +151,26 @@ export default function TopBar({
 
                 {/* Actions Area */}
                 <div className="flex items-center flex-wrap gap-2 md:gap-4">
+                    {/* Server Status Indicator */}
+                    <div className={cn(
+                        "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border transition-all",
+                        serverStatus === "online"
+                            ? "bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/20 text-green-700 dark:text-green-400"
+                            : serverStatus === "offline"
+                                ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-400"
+                                : "bg-yellow-50 dark:bg-yellow-500/10 border-yellow-200 dark:border-yellow-500/20 text-yellow-700 dark:text-yellow-400"
+                    )}>
+                        <div className={cn(
+                            "w-2 h-2 rounded-full",
+                            serverStatus === "online" ? "bg-green-500 animate-pulse" :
+                                serverStatus === "offline" ? "bg-red-500" : "bg-yellow-500"
+                        )} />
+                        <span className="hidden md:inline">
+                            {serverStatus === "online" ? "Online" :
+                                serverStatus === "offline" ? "Offline" : "Conectando..."}
+                        </span>
+                    </div>
+
                     {/* Search Bar */}
                     <div className="relative flex-1 md:flex-none">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors" size={16} />

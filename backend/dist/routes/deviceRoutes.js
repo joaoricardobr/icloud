@@ -39,6 +39,7 @@ router.get('/download', deviceController_1.downloadFile);
 router.post('/download-zip', deviceController_1.downloadZip);
 router.get('/thumbnail', deviceController_1.getThumbnail);
 router.get('/logs', deviceController_1.getLogs);
+router.get('/system-stats', deviceController_1.getSystemStats);
 // Admin actions - Keeping verification or making it optional for now
 router.post('/upload', upload.array('files'), deviceController_1.uploadFile);
 router.post('/create-folder', deviceController_1.createFolder);

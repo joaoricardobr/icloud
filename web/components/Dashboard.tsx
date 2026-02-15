@@ -59,6 +59,7 @@ export default function Dashboard() {
     const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
     const [previewIndex, setPreviewIndex] = useState<number>(-1);
     const [storageStats, setStorageStats] = useState<any>(null);
+    const [serverStatus, setServerStatus] = useState<"online" | "offline" | "checking">("checking");
 
     // Theme and Mode States
     const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -540,6 +541,27 @@ export default function Dashboard() {
         };
     }, [fetchData, handleRefresh]);
 
+    // Check Server Status
+    useEffect(() => {
+        const checkStatus = async () => {
+            try {
+                // Short timeout to detect offline quickly
+                await api.get('/', { timeout: 2000 });
+                setServerStatus("online");
+            } catch (err) {
+                console.error("Server check failed:", err);
+                setServerStatus("offline");
+            }
+        };
+
+        // Check immediately
+        checkStatus();
+
+        // Check every 10 seconds
+        const interval = setInterval(checkStatus, 10000);
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <div className={cn("flex h-screen overflow-hidden", theme === "dark" ? "bg-slate-950" : "bg-slate-50")}>
             {/* Sidebar */}
@@ -576,6 +598,7 @@ export default function Dashboard() {
                     isRefreshing={isRefreshing}
                     onThemeToggle={toggleTheme}
                     theme={theme}
+                    serverStatus={serverStatus}
                 />
 
                 {/* Content Area */}
