@@ -12,7 +12,7 @@ import archiver from 'archiver';
 const HOME_DIR = os.homedir();
 const TRASH_DIR = path.join(HOME_DIR, '.local', 'share', 'Trash', 'files');
 
-// File type categories
+// File type categories - Normalized keys
 const FILE_CATEGORIES = {
     imagens: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tiff', '.ico'],
     videos: ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.flv', '.webm', '.m4v', '.mpeg'],
@@ -20,7 +20,7 @@ const FILE_CATEGORIES = {
     documentos: ['.pdf', '.doc', '.docx', '.txt', '.xlsx', '.pptx', '.csv', '.rtf', '.odt']
 };
 
-// Helper to validate and sanitize paths
+// Helper to validate and sanitize paths - Security Hardening
 const validatePath = (targetPath: string): string => {
     if (!targetPath || targetPath === '') return HOME_DIR;
 
@@ -29,15 +29,17 @@ const validatePath = (targetPath: string): string => {
 
     // Security check - prevent directory traversal
     if (absolutePath.includes('..')) {
+        console.warn(`[Security] Blocked path traversal attempt: ${targetPath}`);
         throw new Error('Invalid path');
     }
 
     return absolutePath;
 };
 
-// Scan directory for files by category (limited depth for performance)
-const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_CATEGORIES, maxFiles = 10, depth = 0): any[] => {
-    if (depth > 2 || maxFiles <= 0 || !fs.existsSync(dirPath)) return [];
+// Scan directory for files by category (Recursion with strict limits)
+const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_CATEGORIES, maxFiles = 50, depth = 0): any[] => {
+    // Increased maxFiles and depth slightly for better results
+    if (depth > 3 || maxFiles <= 0 || !fs.existsSync(dirPath)) return [];
 
     const results: any[] = [];
     const extensions = FILE_CATEGORIES[category];
@@ -47,7 +49,7 @@ const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_C
 
         for (const item of items) {
             // Skip hidden and system folders
-            if (item.startsWith('.') || item === 'node_modules' || item === 'snap') continue;
+            if (item.startsWith('.') || item === 'node_modules' || item === 'snap' || item === 'System Volume Information') continue;
 
             const itemPath = path.join(dirPath, item);
 
@@ -82,7 +84,7 @@ const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_C
             }
         }
     } catch (e) {
-        console.error(`[Scan] Error reading ${dirPath}:`, e);
+        // console.error(`[Scan] Error reading ${dirPath}:`, e);
     }
 
     return results;
@@ -97,12 +99,12 @@ const getCategoryStats = async (disks: any[]) => {
         documentos: { count: 0, size: 0, files: [] }
     };
 
-    // Common folders to scan on each disk
+    // Common folders to scan on each disk (Expanded)
     const commonFolders = [
-        'Imagens', 'Pictures', 'Fotos',
-        'Vídeos', 'Videos', 'Filmes',
-        'Música', 'Music', 'Músicas',
-        'Documentos', 'Documents', 'Docs',
+        'Imagens', 'Pictures', 'Fotos', 'Images',
+        'Vídeos', 'Videos', 'Filmes', 'Movies',
+        'Música', 'Music', 'Músicas', 'Songs',
+        'Documentos', 'Documents', 'Docs', 'Papers',
         'Downloads', 'Transferências', 'Download'
     ];
 
@@ -115,7 +117,11 @@ const getCategoryStats = async (disks: any[]) => {
             try {
                 if (fs.existsSync(folderPath)) {
                     for (const category of Object.keys(FILE_CATEGORIES) as (keyof typeof FILE_CATEGORIES)[]) {
-                        const files = scanDirectoryForCategory(folderPath, category, 10);
+                        // Scan logic per category
+                        const fileExts = FILE_CATEGORIES[category];
+                        // Heuristic: only scan likely folders for speed? No, scan all common folders for all types.
+                        // But we limit depth and count to avoid hanging.
+                        const files = scanDirectoryForCategory(folderPath, category, 20); // increased limit
                         stats[category].files.push(...files);
                         stats[category].count += files.length;
                         stats[category].size += files.reduce((sum, f) => sum + f.size, 0);
@@ -135,7 +141,9 @@ export const getFiles = async (req: Request, res: Response) => {
     try {
         const queryPath = (req.query.path as string) || '';
         const mode = req.query.mode as string;
-        const category = req.query.category as string;
+        // Normalize category to lowercase to prevent mismatches
+        const categoryRaw = req.query.category as string;
+        const category = categoryRaw ? categoryRaw.toLowerCase() : undefined;
 
         console.log(`[getFiles] Path: "${queryPath}", Mode: "${mode}", Category: "${category}"`);
 
@@ -152,25 +160,26 @@ export const getFiles = async (req: Request, res: Response) => {
         }
 
         // Get real disk information
+        // Improve disk detection to include /dev/mapper and others
         const allDisks = await si.fsSize();
         let relevantDisks: any[] = [];
 
-        // Get disk temperature
         try {
             const temps = await si.cpuTemperature();
-            // Note: si.cpuTemperature() might not give per-disk temp on all systems, 
-            // but si.diskLayout() often has temperature if smartmontools is installed.
+            // Try getting disk layout for temperatures
             const diskLayout = await si.diskLayout();
+
             relevantDisks = allDisks
                 .filter(d => {
-                    const isPhysical = d.fs.startsWith('/dev/sd') || d.fs.startsWith('/dev/nvme');
+                    // Broader filter for physical/logical volumes
+                    const isPhysical = d.fs.startsWith('/dev/');
                     const hasMount = d.mount && d.mount !== '';
-                    const notSnap = !d.mount.includes('/snap');
+                    const notSnap = !d.mount.includes('/snap') && !d.mount.includes('/boot') && !d.mount.startsWith('/run');
                     return isPhysical && hasMount && notSnap;
                 })
                 .map(d => {
-                    // Try to find matching disk in layout for temperature
-                    const layout = diskLayout.find(l => d.fs.includes(l.device) || l.device.includes(d.fs.split('/').pop() || ''));
+                    // Try to match temperature
+                    const layout = diskLayout.find(l => d.fs.includes(l.device) || (l.device && d.fs.includes(l.device.split('/').pop() || '')));
                     return {
                         name: d.mount === '/' ? 'Disco Local (Sistema)' : path.basename(d.mount) || d.fs,
                         mount: d.mount,
@@ -182,16 +191,11 @@ export const getFiles = async (req: Request, res: Response) => {
                     };
                 });
         } catch (e) {
-            console.error('[Temperature] Error:', e);
-            relevantDisks = allDisks
-                .filter(d => {
-                    const isPhysical = d.fs.startsWith('/dev/sd') || d.fs.startsWith('/dev/nvme');
-                    const hasMount = d.mount && d.mount !== '';
-                    const notSnap = !d.mount.includes('/snap');
-                    return isPhysical && hasMount && notSnap;
-                })
+            console.error('[DiskDetection] Error:', e);
+            // Fallback
+            relevantDisks = allDisks.filter(d => d.mount && !d.mount.includes('/snap') && d.fs.startsWith('/dev/'))
                 .map(d => ({
-                    name: d.mount === '/' ? 'Disco Local (Sistema)' : path.basename(d.mount) || d.fs,
+                    name: d.mount === '/' ? 'Disco Local (Sistema)' : path.basename(d.mount),
                     mount: d.mount,
                     size: d.size,
                     used: d.used,
@@ -205,11 +209,15 @@ export const getFiles = async (req: Request, res: Response) => {
         let categoryStats: any = null;
 
         // MODE: Category view (show files of specific type across all disks)
-        if (category && FILE_CATEGORIES[category as keyof typeof FILE_CATEGORIES]) {
+        // Strict check against valid keys
+        if (category && Object.keys(FILE_CATEGORIES).includes(category)) {
             console.log(`[Category] Scanning for ${category}...`);
             const allStats = await getCategoryStats(relevantDisks);
             metadata = allStats[category].files || [];
             categoryStats = allStats;
+
+            // IMPORTANT: If we found files, we return them.
+            // Even if empty, we return empty list, NOT the home view.
         }
         // MODE: Recent files
         else if (mode === 'recent') {
@@ -217,7 +225,9 @@ export const getFiles = async (req: Request, res: Response) => {
                 HOME_DIR,
                 path.join(HOME_DIR, 'Transferências'),
                 path.join(HOME_DIR, 'Documentos'),
-                path.join(HOME_DIR, 'Downloads')
+                path.join(HOME_DIR, 'Downloads'),
+                path.join(HOME_DIR, 'Imagens'),
+                path.join(HOME_DIR, 'Vídeos')
             ];
 
             for (const dir of scanDirs) {
@@ -297,7 +307,7 @@ export const getFiles = async (req: Request, res: Response) => {
                 }
             }
         }
-        // HOME VIEW: Show real disks + Uploads Online folder (only on empty path)
+        // HOME VIEW: Show real disks + Uploads Online folder (only on empty path AND no category)
         else if (queryPath === '') {
             // Get category statistics for dashboard
             categoryStats = await getCategoryStats(relevantDisks);
@@ -314,48 +324,55 @@ export const getFiles = async (req: Request, res: Response) => {
                 diskType: disk.type
             }));
 
-            // 2. Add Standard System Folders (Backport from b7b181d)
+            // 2. Add Standard System Folders
+            // Force correct mapping even if folder name differs
             const standardFolders = [
-                { name: 'Imagens 🏙️', folder: 'Imagens' },
-                { name: 'Vídeos 🎬', folder: 'Vídeos' },
-                { name: 'Músicas 🎵', folder: 'Músicas' },
-                { name: 'Documentos 📄', folder: 'Documentos' },
-                { name: 'Transferências 📥', folder: 'Transferências' },
-                { name: 'Downloads 📂', folder: 'Downloads' }
+                { name: 'Imagens 🏙️', possiblePaths: ['Imagens', 'Pictures', 'Images'] },
+                { name: 'Vídeos 🎬', possiblePaths: ['Vídeos', 'Videos', 'Movies'] },
+                { name: 'Músicas 🎵', possiblePaths: ['Músicas', 'Music', 'Songs'] },
+                { name: 'Documentos 📄', possiblePaths: ['Documentos', 'Documents'] },
+                { name: 'Transferências 📥', possiblePaths: ['Transferências', 'Downloads'] }
             ];
 
             for (const f of standardFolders) {
-                const fullPath = path.join(HOME_DIR, f.folder);
-                if (fs.existsSync(fullPath)) {
-                    const stats = fs.statSync(fullPath);
-                    metadata.unshift({
-                        name: f.name,
-                        path: fullPath,
-                        size: stats.size,
-                        isDirectory: true,
-                        mtime: stats.mtime,
-                        isFavorite: favoritePaths.has(fullPath),
-                        diskLabel: 'Home'
-                    });
+                // Find first existing path
+                for (const p of f.possiblePaths) {
+                    const fullPath = path.join(HOME_DIR, p);
+                    if (fs.existsSync(fullPath)) {
+                        const stats = fs.statSync(fullPath);
+                        metadata.unshift({
+                            name: f.name,
+                            path: fullPath,
+                            size: stats.size,
+                            isDirectory: true,
+                            mtime: stats.mtime,
+                            isFavorite: favoritePaths.has(fullPath),
+                            diskLabel: 'Home'
+                        });
+                        break; // Found one, stop looking for this type
+                    }
                 }
             }
 
-            // 3. Add Uploads Online folder (Highest priority)
+            // 3. Add Uploads Online folder
             const uploadsOnline = path.join(HOME_DIR, 'Transferências', 'Uploads Online');
             if (!fs.existsSync(uploadsOnline)) {
-                fs.mkdirSync(uploadsOnline, { recursive: true });
+                // Try create only if parent exists, else skip to avoid errors
+                try { fs.mkdirSync(uploadsOnline, { recursive: true }); } catch (e) { }
             }
 
-            const uploadsStats = fs.statSync(uploadsOnline);
-            metadata.unshift({
-                name: 'Uploads Online 🏠',
-                path: uploadsOnline,
-                size: uploadsStats.size,
-                isDirectory: true,
-                mtime: uploadsStats.mtime,
-                isFavorite: favoritePaths.has(uploadsOnline),
-                diskLabel: 'Home'
-            });
+            if (fs.existsSync(uploadsOnline)) {
+                const uploadsStats = fs.statSync(uploadsOnline);
+                metadata.unshift({
+                    name: 'Uploads Online 🏠',
+                    path: uploadsOnline,
+                    size: uploadsStats.size,
+                    isDirectory: true,
+                    mtime: uploadsStats.mtime,
+                    isFavorite: favoritePaths.has(uploadsOnline),
+                    diskLabel: 'Home'
+                });
+            }
         }
         // REAL DIRECTORY LISTING
         else {
@@ -364,6 +381,7 @@ export const getFiles = async (req: Request, res: Response) => {
             if (!fs.existsSync(targetDir)) {
                 return res.status(404).json({ error: 'Directory not found' });
             }
+
 
             const stats = fs.statSync(targetDir);
             if (!stats.isDirectory()) {

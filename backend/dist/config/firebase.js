@@ -37,16 +37,31 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.admin = exports.db = void 0;
+const path_1 = __importDefault(require("path"));
 const admin = __importStar(require("firebase-admin"));
 exports.admin = admin;
 const firestore_1 = require("firebase-admin/firestore");
 const dotenv_1 = __importDefault(require("dotenv"));
+const fs_1 = __importDefault(require("fs"));
 dotenv_1.default.config();
+const serviceAccountPath = path_1.default.join(__dirname, '..', '..', 'service-account.json');
+const serviceAccountExists = fs_1.default.existsSync(serviceAccountPath);
 if (!admin.apps.length) {
-    admin.initializeApp({
-        projectId: "cloud-engenheiros",
-        storageBucket: "cloud-engenheiros.firebasestorage.app"
-    });
+    if (serviceAccountExists) {
+        console.log('🔑 Usando service-account.json para Firebase ADM.');
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccountPath),
+            projectId: "cloud-engenheiros",
+            storageBucket: "cloud-engenheiros.firebasestorage.app"
+        });
+    }
+    else {
+        console.warn('⚠️ service-account.json não encontrado. Usando credenciais padrão.');
+        admin.initializeApp({
+            projectId: "cloud-engenheiros",
+            storageBucket: "cloud-engenheiros.firebasestorage.app"
+        });
+    }
 }
 const db = (0, firestore_1.getFirestore)();
 exports.db = db;
