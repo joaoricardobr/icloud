@@ -57,21 +57,18 @@ echo "✅ Túnel Ativo: $TUNNEL_URL"
 # fi
 
 echo "📝 Atualizando $API_FILE..."
-# Escapa a URL para o sed
-ESCAPED_URL=$(echo "$TUNNEL_URL/api/cloud" | sed 's/\//\\\//g')
-# Atualiza tanto DEFAULT_API_URL quanto baseURL literal se existirem
-sed -i "s|DEFAULT_API_URL = \".*\"|DEFAULT_API_URL = \"$ESCAPED_URL\"|" "$API_FILE"
-sed -i "s|baseURL: \".*\"|baseURL: \"$ESCAPED_URL\"|" "$API_FILE"
+# No logic needed here anymore as API fetches from Firestore dynamically.
+echo "ℹ️ O frontend agora busca a URL dinamicamente. Nenhuma alteração no código necessária."
 
 echo "🔥 Atualizando Firestore com a nova URL..."
 cd "$PROJECT_ROOT/backend"
 node src/scripts/update-api-url.js "$TUNNEL_URL/api/cloud"
 
-echo "📦 Fazendo push para o GitHub (Disparando Vercel)..."
-cd "$PROJECT_ROOT"
-git add "$API_FILE" vercel-sync.sh
-git commit -m "🌐 Auto-Sync & CORS Fix: $TUNNEL_URL"
-git push origin main
+# echo "📦 Fazendo push para o GitHub (Disparando Vercel)..."
+# cd "$PROJECT_ROOT"
+# git add "$API_FILE" vercel-sync.sh
+# git commit -m "🌐 Auto-Sync & CORS Fix: $TUNNEL_URL"
+# git push origin main
 
-echo "🚀 TUDO PRONTO! O site será atualizado na Vercel em instantes."
+echo "🚀 TUDO PRONTO! O site deve se conectar automaticamente assim que obter a nova URL do Firestore."
 echo "🔗 URL da API: $TUNNEL_URL/api/cloud"

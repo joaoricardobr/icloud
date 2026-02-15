@@ -37,9 +37,9 @@ const validatePath = (targetPath: string): string => {
 };
 
 // Scan directory for files by category (Recursion with strict limits)
-const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_CATEGORIES, maxFiles = 50, depth = 0): any[] => {
+const scanDirectoryForCategory = (dirPath: string, category: keyof typeof FILE_CATEGORIES, maxFiles = 500, depth = 0): any[] => {
     // Increased maxFiles and depth slightly for better results
-    if (depth > 3 || maxFiles <= 0 || !fs.existsSync(dirPath)) return [];
+    if (depth > 5 || maxFiles <= 0 || !fs.existsSync(dirPath)) return [];
 
     // STRICT IGNORE LIST - Vital for preventing Permission Denied errors and hanging
     const IGNORED_DIRS = [
@@ -122,7 +122,8 @@ const getCategoryStats = async (disks: any[]) => {
         'Vídeos', 'Videos', 'Filmes', 'Movies',
         'Música', 'Music', 'Músicas', 'Songs',
         'Documentos', 'Documents', 'Docs', 'Papers',
-        'Downloads', 'Transferências', 'Download'
+        'Downloads', 'Transferências', 'Download',
+        'Desktop', 'Área de Trabalho'
     ];
 
     for (const disk of disks) {
@@ -138,7 +139,7 @@ const getCategoryStats = async (disks: any[]) => {
                         const fileExts = FILE_CATEGORIES[category];
                         // Heuristic: only scan likely folders for speed? No, scan all common folders for all types.
                         // But we limit depth and count to avoid hanging.
-                        const files = scanDirectoryForCategory(folderPath, category, 20); // increased limit
+                        const files = scanDirectoryForCategory(folderPath, category, 100); // increased limit
                         stats[category].files.push(...files);
                         stats[category].count += files.length;
                         stats[category].size += files.reduce((sum, f) => sum + f.size, 0);
@@ -151,6 +152,43 @@ const getCategoryStats = async (disks: any[]) => {
     }
 
     return stats;
+};
+
+export const getSystemStats = async (req: Request, res: Response) => {
+    try {
+        const [cpu, mem, osInfo, currentLoad] = await Promise.all([
+            si.cpu(),
+            si.mem(),
+            si.osInfo(),
+            si.currentLoad()
+        ]);
+
+        res.json({
+            cpu: {
+                manufacturer: cpu.manufacturer,
+                brand: cpu.brand,
+                speed: cpu.speed,
+                cores: cpu.cores,
+                load: Math.round(currentLoad.currentLoad)
+            },
+            memory: {
+                total: mem.total,
+                free: mem.free,
+                used: mem.used,
+                active: mem.active,
+                available: mem.available
+            },
+            os: {
+                platform: osInfo.platform,
+                distro: osInfo.distro,
+                release: osInfo.release,
+                hostname: osInfo.hostname
+            }
+        });
+    } catch (error: any) {
+        console.error('[SystemStats] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
 };
 
 // Get real disk information and files

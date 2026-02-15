@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getFiles, uploadFile, downloadFile, deleteFile, createFolder, getThumbnail, getLogs, permanentDelete, emptyTrash, downloadZip } from '../controllers/deviceController';
+import { getFiles, uploadFile, downloadFile, deleteFile, createFolder, getThumbnail, getLogs, permanentDelete, emptyTrash, downloadZip, getSystemStats } from '../controllers/deviceController';
 import { getSettings, updateSettings, createUser, toggleFavorite } from '../controllers/settingsController';
 import { verifyToken, verifyAdmin } from '../middleware/authMiddleware';
 import multer from 'multer';
@@ -41,6 +41,7 @@ router.get('/download', downloadFile);
 router.post('/download-zip', downloadZip);
 router.get('/thumbnail', getThumbnail);
 router.get('/logs', getLogs);
+router.get('/system-stats', getSystemStats);
 
 // Admin actions - Keeping verification or making it optional for now
 router.post('/upload', upload.array('files'), uploadFile);
