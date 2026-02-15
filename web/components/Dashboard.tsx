@@ -174,9 +174,11 @@ export default function Dashboard() {
     }, [fetchData, currentPath, activeView, activeCategory]);
 
     // Navigate to a path
+    // Navigate to a path
     const navigateTo = (path: string) => {
         setActiveView("home");
         setActiveCategory("");
+        setCurrentPath(path); // Optimistic update to switch view immediately
         fetchData(path);
     };
 
