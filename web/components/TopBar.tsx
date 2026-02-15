@@ -50,7 +50,6 @@ interface TopBarProps {
     onRefresh?: () => void;
     isRefreshing?: boolean;
     onThemeToggle?: () => void;
-    onThemeToggle?: () => void;
     theme?: "light" | "dark";
     serverStatus?: "online" | "offline" | "checking";
 }
