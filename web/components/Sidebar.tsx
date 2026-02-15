@@ -15,15 +15,16 @@ import {
     ChevronLeft,
     Menu,
     X,
-    Settings
+    Settings,
+    HardDrive
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { slideInFromLeft, staggerContainer, staggerItem } from "@/lib/animations";
 
 interface SidebarProps {
-    activeView: "home" | "recent" | "favorites" | "trash" | "category" | "settings";
+    activeView: "home" | "recent" | "favorites" | "trash" | "category" | "settings" | "explorer";
     activeCategory?: string;
-    onViewChange: (view: "home" | "recent" | "favorites" | "trash" | "settings") => void;
+    onViewChange: (view: "home" | "recent" | "favorites" | "trash" | "settings" | "explorer") => void;
     onCategoryChange: (category: string) => void;
     onLogout: () => void;
     theme?: "light" | "dark";
@@ -55,6 +56,7 @@ export default function Sidebar({
 
     const navItems = [
         { id: "home", label: "Início", icon: Home, view: "home" as const },
+        { id: "explorer", label: "Arquivos", icon: HardDrive, view: "explorer" as const },
         { id: "recent", label: "Recentes", icon: Clock, view: "recent" as const },
         { id: "favorites", label: "Favoritos", icon: Star, view: "favorites" as const },
         { id: "settings", label: "Configuração", icon: Settings, view: "settings" as const },

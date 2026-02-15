@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { LucideIcon } from "lucide-react";
-import { formatBytes, getCategoryIcon, getCategoryColor, getCategoryName } from "@/lib/utils";
+import { formatBytes, getCategoryIcon, getCategoryColor, getCategoryName, cn } from "@/lib/utils";
 import { scaleIn } from "@/lib/animations";
 
 interface CategoryCardProps {
@@ -49,14 +49,21 @@ export default function CategoryCard({
                     className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${gradientColor} flex items-center justify-center shadow-xl mb-6 relative group-hover:scale-110 transition-transform duration-500`}
                 >
                     <Icon className="w-10 h-10 text-white relative z-30 drop-shadow-md" />
-                    {/* Pulsing inner glow - now colorized */}
+                    {/* Pulsing inner glow - now using literal strings to prevent JIT purge */}
                     <motion.div
                         animate={{
                             scale: [1, 1.4, 1],
                             opacity: [0.3, 0.6, 0.3]
                         }}
                         transition={{ duration: 4, repeat: Infinity }}
-                        className={`absolute inset-0 bg-gradient-to-br ${gradientColor} rounded-3xl blur-2xl z-10`}
+                        className={cn(
+                            "absolute inset-0 bg-gradient-to-br rounded-3xl blur-2xl z-10",
+                            gradientColor.includes('emerald') ? "from-emerald-500 to-teal-600" :
+                                gradientColor.includes('indigo') ? "from-indigo-500 to-blue-600" :
+                                    gradientColor.includes('rose') ? "from-rose-500 to-pink-600" :
+                                        gradientColor.includes('amber') ? "from-amber-500 to-orange-600" :
+                                            "from-slate-500 to-slate-600"
+                        )}
                     />
                 </motion.div>
 

@@ -54,7 +54,7 @@ export default function Dashboard() {
     const [categoryStats, setCategoryStats] = useState<CategoryStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>("");
-    const [activeView, setActiveView] = useState<"home" | "recent" | "favorites" | "trash" | "category" | "settings">("home");
+    const [activeView, setActiveView] = useState<"home" | "recent" | "favorites" | "trash" | "category" | "settings" | "explorer">("home");
     const [activeCategory, setActiveCategory] = useState<string>("");
     const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
     const [previewIndex, setPreviewIndex] = useState<number>(-1);
@@ -159,7 +159,7 @@ export default function Dashboard() {
     };
 
     // Change view
-    const handleViewChange = (view: "home" | "recent" | "favorites" | "trash" | "settings") => {
+    const handleViewChange = (view: "home" | "recent" | "favorites" | "trash" | "settings" | "explorer") => {
         setActiveView(view);
         setActiveCategory("");
         setSearchQuery("");
@@ -450,7 +450,8 @@ export default function Dashboard() {
             const views: Record<string, string> = {
                 recent: "Recentes",
                 favorites: "Favoritos",
-                trash: "Lixeira"
+                trash: "Lixeira",
+                explorer: "Arquivos"
             };
             return [
                 { name: "Início", path: "" },
@@ -611,10 +612,11 @@ export default function Dashboard() {
                             {/* Filters Bar (Internal) */}
                             {activeView !== "home" || currentPath ? (
                                 <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
-                                    <h2 className="text-2xl font-black text-slate-800">
+                                    <h2 className="text-2xl font-black text-slate-800 dark:text-white">
                                         {activeView === "home" ? (currentPath ? "Arquivos" : "Painel") :
-                                            activeView === "category" ? getCategoryDisplayName(activeCategory) :
-                                                getBreadcrumbs().slice(-1)[0].name}
+                                            activeView === "explorer" ? "Meus Discos" :
+                                                activeView === "category" ? getCategoryDisplayName(activeCategory) :
+                                                    getBreadcrumbs().slice(-1)[0].name}
                                     </h2>
 
                                     <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
@@ -661,6 +663,36 @@ export default function Dashboard() {
                                         exit="exit"
                                         className="pb-12"
                                     >
+                                        {/* EXPLORER VIEW - Show Disks directly */}
+                                        {activeView === "explorer" && !currentPath && (
+                                            <section>
+                                                <div className="mb-8">
+                                                    <h2 className="text-3xl font-black text-slate-900 dark:text-white">Explorador de Arquivos</h2>
+                                                    <p className="text-slate-500 dark:text-slate-400">Navegue diretamente pelos seus discos rígidos</p>
+                                                </div>
+                                                <motion.div
+                                                    variants={staggerContainer}
+                                                    initial="hidden"
+                                                    animate="visible"
+                                                    className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6"
+                                                >
+                                                    {disks.map(disk => (
+                                                        <DiskCard
+                                                            key={disk.mount}
+                                                            name={disk.name}
+                                                            mount={disk.mount}
+                                                            size={disk.size}
+                                                            used={disk.used}
+                                                            percent={disk.percent}
+                                                            temperature={disk.temperature}
+                                                            type={disk.type}
+                                                            onClick={() => navigateTo(disk.mount)}
+                                                        />
+                                                    ))}
+                                                </motion.div>
+                                            </section>
+                                        )}
+
                                         {/* HOME VIEW - Show Categories + Disks */}
                                         {activeView === "home" && !currentPath && (
                                             <div className="space-y-12">

@@ -251,7 +251,10 @@ export default function FileGrid({
                                 "dark:bg-slate-800/50"
                             )}>
                                 {/* Hover Glow */}
-                                <div className={`absolute inset-0 bg-gradient-to-br ${color.replace('text-', 'from-').replace('600', '500')} to-transparent opacity-0 group-hover:opacity-20 transition-opacity`} />
+                                <div className={cn(
+                                    "absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-20 transition-opacity",
+                                    color.replace('text-', 'from-').replace('600', '500')
+                                )} />
 
                                 {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|mp4|mkv|mov)$/i)) ? (
                                     <Image

@@ -143,6 +143,38 @@ export function getCategoryColor(category: string): string {
     }
 }
 
+export function getCategoryAccent(category: string): string {
+    const normalized = category.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    switch (normalized) {
+        case 'imagens':
+            return 'bg-emerald-100 text-emerald-600';
+        case 'videos':
+            return 'bg-indigo-100 text-indigo-600';
+        case 'musicas':
+            return 'bg-rose-100 text-rose-600';
+        case 'documentos':
+            return 'bg-amber-100 text-amber-600';
+        default:
+            return 'bg-slate-100 text-slate-600';
+    }
+}
+
+export function getCategoryGlow(category: string): string {
+    const normalized = category.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    switch (normalized) {
+        case 'imagens':
+            return 'from-emerald-500';
+        case 'videos':
+            return 'from-indigo-500';
+        case 'musicas':
+            return 'from-rose-500';
+        case 'documentos':
+            return 'from-amber-500';
+        default:
+            return 'from-slate-500';
+    }
+}
+
 export function getCategoryName(category: string): string {
     const normalized = category.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     switch (normalized) {
