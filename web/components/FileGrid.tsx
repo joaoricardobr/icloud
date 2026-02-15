@@ -173,7 +173,7 @@ export default function FileGrid({
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2 md:gap-6"
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4 md:gap-6"
         >
             {files.map((file) => {
                 const Icon = getFileIcon(file.name, file.isDirectory);
@@ -191,10 +191,12 @@ export default function FileGrid({
                             onContextMenu?.(file, e);
                         }}
                         className={cn(
-                            "group bg-white dark:bg-slate-900 rounded-2xl md:rounded-3xl p-2 md:p-4 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-none transition-all border border-slate-100 dark:border-slate-800 cursor-pointer relative overflow-hidden",
+                            "group bg-white dark:bg-slate-900 rounded-2xl md:rounded-3xl p-3 md:p-5 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-none transition-all border border-slate-100 dark:border-slate-800 cursor-pointer relative overflow-hidden",
                             file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i) && "aspect-square"
                         )}
                     >
+                        {/* Vibrant Accent Glow */}
+                        <div className={`absolute -right-4 -top-4 w-20 h-20 bg-gradient-to-br ${color.replace('text-', 'from-').replace('600', '500')} to-transparent opacity-0 group-hover:opacity-10 dark:group-hover:opacity-20 transition-opacity blur-xl z-0`} />
                         {/* Selection Indicator */}
                         {(selectionMode || selectedPaths.length > 0) && (
                             <div className="absolute top-4 left-4 z-20">
@@ -236,23 +238,26 @@ export default function FileGrid({
 
                         <div className="flex flex-col items-center">
                             <div className={cn(
-                                "w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 overflow-hidden",
+                                "w-16 h-16 md:w-24 md:h-24 rounded-2xl flex items-center justify-center mb-4 transition-all group-hover:scale-110 overflow-hidden relative",
                                 color.replace('text-', 'bg-').replace('600', '100'),
-                                "dark:bg-slate-800"
+                                "dark:bg-slate-800/50"
                             )}>
+                                {/* Hover Glow */}
+                                <div className={`absolute inset-0 bg-gradient-to-br ${color.replace('text-', 'from-').replace('600', '500')} to-transparent opacity-0 group-hover:opacity-20 transition-opacity`} />
+
                                 {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|mp4|mkv|mov)$/i)) ? (
                                     <img
                                         src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}`}
                                         alt={file.name}
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full object-cover relative z-10"
                                         onError={(e) => {
                                             // Fallback to icon if thumbnail fails
                                             (e.target as any).style.display = 'none';
-                                            (e.target as any).parentElement.innerHTML = `<svg class="${color} w-8 h-8 md:w-9 md:h-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${Icon === Folder ? 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' : 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'}"></path></svg>`;
+                                            (e.target as any).parentElement.innerHTML = `<svg class="${color} w-8 h-8 md:w-11 md:h-11 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${Icon === Folder ? 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' : 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'}"></path></svg>`;
                                         }}
                                     />
                                 ) : (
-                                    <Icon size={file.isDirectory ? 32 : 36} className={color} />
+                                    <Icon size={file.isDirectory ? 36 : 42} className={cn(color, "relative z-10 drop-shadow-sm")} />
                                 )}
                             </div>
 

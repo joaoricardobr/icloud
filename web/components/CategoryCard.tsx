@@ -31,7 +31,7 @@ export default function CategoryCard({
             className="relative bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-xl dark:shadow-none hover:shadow-2xl transition-all duration-300 cursor-pointer border border-slate-100 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-500/50 overflow-hidden group"
         >
             {/* Background Gradient (appears on hover) */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${gradientColor} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
+            <div className={`absolute inset-0 bg-gradient-to-br ${gradientColor} opacity-0 group-hover:opacity-20 transition-opacity duration-300`} />
 
             {/* Content */}
             <div className="relative z-10">
@@ -49,14 +49,14 @@ export default function CategoryCard({
                     className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${gradientColor} flex items-center justify-center shadow-xl mb-6 relative group-hover:scale-110 transition-transform duration-500`}
                 >
                     <Icon className="w-10 h-10 text-white relative z-30 drop-shadow-md" />
-                    {/* Pulsing inner glow */}
+                    {/* Pulsing inner glow - now colorized */}
                     <motion.div
                         animate={{
-                            scale: [1, 1.2, 1],
-                            opacity: [0.2, 0.4, 0.2]
+                            scale: [1, 1.4, 1],
+                            opacity: [0.3, 0.6, 0.3]
                         }}
                         transition={{ duration: 4, repeat: Infinity }}
-                        className="absolute inset-0 bg-white/40 rounded-3xl blur-xl z-10"
+                        className={`absolute inset-0 bg-gradient-to-br ${gradientColor} rounded-3xl blur-2xl z-10`}
                     />
                 </motion.div>
 
