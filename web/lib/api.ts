@@ -15,9 +15,9 @@ const api = axios.create({
 // Dynamic BaseURL Discovery
 const updateBaseURL = async (retryCount = 0) => {
     // Priority 1: If we are on localhost, try the local backend first
-    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
         api.defaults.baseURL = "http://localhost:3001/api/cloud";
-        console.log("🏠 Localhost detectado. Usando backend local:", api.defaults.baseURL);
+        console.log("🏠 Localhost/127.0.0.1 detectado. Usando backend local:", api.defaults.baseURL);
         return;
     }
 

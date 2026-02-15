@@ -302,7 +302,7 @@ export const getFiles = async (req: Request, res: Response) => {
             // Get category statistics for dashboard
             categoryStats = await getCategoryStats(relevantDisks);
 
-            // Add real disks
+            // 1. Add Disks
             metadata = relevantDisks.map((disk: any) => ({
                 name: disk.name,
                 path: disk.mount,
@@ -314,7 +314,33 @@ export const getFiles = async (req: Request, res: Response) => {
                 diskType: disk.type
             }));
 
-            // Add Uploads Online folder
+            // 2. Add Standard System Folders (Backport from b7b181d)
+            const standardFolders = [
+                { name: 'Imagens 🏙️', folder: 'Imagens' },
+                { name: 'Vídeos 🎬', folder: 'Vídeos' },
+                { name: 'Músicas 🎵', folder: 'Músicas' },
+                { name: 'Documentos 📄', folder: 'Documentos' },
+                { name: 'Transferências 📥', folder: 'Transferências' },
+                { name: 'Downloads 📂', folder: 'Downloads' }
+            ];
+
+            for (const f of standardFolders) {
+                const fullPath = path.join(HOME_DIR, f.folder);
+                if (fs.existsSync(fullPath)) {
+                    const stats = fs.statSync(fullPath);
+                    metadata.unshift({
+                        name: f.name,
+                        path: fullPath,
+                        size: stats.size,
+                        isDirectory: true,
+                        mtime: stats.mtime,
+                        isFavorite: favoritePaths.has(fullPath),
+                        diskLabel: 'Home'
+                    });
+                }
+            }
+
+            // 3. Add Uploads Online folder (Highest priority)
             const uploadsOnline = path.join(HOME_DIR, 'Transferências', 'Uploads Online');
             if (!fs.existsSync(uploadsOnline)) {
                 fs.mkdirSync(uploadsOnline, { recursive: true });
