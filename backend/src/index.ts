@@ -58,8 +58,16 @@ const PORT = process.env.PORT || 3001;
 import deviceRoutes from './routes/deviceRoutes';
 
 // 1. CORS Middleware (Must be BEFORE other middleware)
+// 1. CORS Middleware (Optimized for Vercel + Cloudflare Tunnel)
 app.use(cors({
-    origin: true, // Echoes back the requesting origin
+    origin: (origin, callback) => {
+        // Allow all origins that match Vercel or Cloudflare
+        if (!origin || origin.includes('vercel.app') || origin.endsWith('.trycloudflare.com') || origin.includes('localhost')) {
+            callback(null, true);
+        } else {
+            callback(null, true); // Fallback to allow for dynamic tunnels
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
     credentials: true,
@@ -70,10 +78,7 @@ app.use(express.json());
 
 // 2. Logging and other middleware
 app.use((req, res, next) => {
-    // Handle preflight
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+    // Logging middleware
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
     next();
 });
