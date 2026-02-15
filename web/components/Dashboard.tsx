@@ -569,7 +569,20 @@ export default function Dashboard() {
         const checkStatus = async () => {
             try {
                 // Short timeout to detect offline quickly
-                await api.get('/', { timeout: 2000 });
+                // Use fetch to bypass axios baseURL which includes /api/cloud
+                const baseUrl = api.defaults.baseURL?.replace('/api/cloud', '') || '';
+                if (baseUrl) {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 2000);
+                    try {
+                        await fetch(`${baseUrl}/`, { method: 'HEAD', signal: controller.signal });
+                    } finally {
+                        clearTimeout(timeoutId);
+                    }
+                } else {
+                    // Fallback if no base URL yet
+                    await api.get('/', { timeout: 2000 });
+                }
                 setServerStatus("online");
             } catch (err) {
                 console.error("Server check failed:", err);
@@ -876,7 +889,7 @@ export default function Dashboard() {
                                                 )}
 
                                                 {/* Recent files if on home */}
-                                                {files.length > 0 && (
+                                                {activeView === "home" && !currentPath && files.length > 0 && (
                                                     <section>
                                                         <div className="flex items-center justify-between mb-8">
                                                             <div>
