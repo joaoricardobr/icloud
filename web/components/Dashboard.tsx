@@ -15,7 +15,24 @@ import CreateFolderModal from "./modals/CreateFolderModal";
 import UploadModal from "./modals/UploadModal";
 import SettingsPage from "@/app/dashboard/settings/page";
 import { pageTransition, staggerContainer, slideInFromTop } from "@/lib/animations";
-import { RefreshCw, HardDrive, Trash2 } from "lucide-react";
+import {
+    RefreshCw,
+    HardDrive,
+    Trash2,
+    CheckCircle2,
+    AlertCircle,
+    XCircle,
+    History,
+    Clock,
+    UploadCloud,
+    X,
+    RotateCcw,
+    File,
+    ChevronRight,
+    Search,
+    Filter,
+    ArrowUpRight
+} from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import { getCache, setCache } from "@/lib/db";
 
@@ -45,6 +62,24 @@ interface CategoryStats {
     videos: { count: number; size: number; files: FileItem[] };
     musicas: { count: number; size: number; files: FileItem[] };
     documentos: { count: number; size: number; files: FileItem[] };
+}
+
+interface UploadHistoryItem {
+    id: string;
+    name: string;
+    path: string;
+    status: "uploading" | "success" | "error" | "cancelled";
+    progress: number;
+    size: number;
+    timestamp: number;
+    error?: string;
+    files?: FileList | File[]; // Store files for retry if possible (won't persist in localStorage)
+}
+
+interface Toast {
+    id: string;
+    message: string;
+    type: "success" | "error" | "info" | "warning";
 }
 
 export default function Dashboard() {
@@ -92,7 +127,42 @@ export default function Dashboard() {
     const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
-    const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" | null }>({ message: "", type: null });
+    const [toasts, setToasts] = useState<Toast[]>([]);
+    const [uploadHistory, setUploadHistory] = useState<UploadHistoryItem[]>([]);
+    const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
+
+    // Persistence for Upload History
+    useEffect(() => {
+        const savedHistory = localStorage.getItem("upload_history");
+        if (savedHistory) {
+            try {
+                const parsed = JSON.parse(savedHistory);
+                // Sanitize: items that were 'uploading' should be marked 'cancelled' or removed after reload
+                const sanitized = parsed.map((item: any) =>
+                    item.status === 'uploading' ? { ...item, status: 'cancelled' } : item
+                );
+                setUploadHistory(sanitized);
+            } catch (e) {
+                console.error("Failed to parse upload history", e);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        if (uploadHistory.length > 0) {
+            // Only persist status, metadata, not the File objects
+            const toPersist = uploadHistory.map(({ files, ...rest }) => rest);
+            localStorage.setItem("upload_history", JSON.stringify(toPersist.slice(0, 50))); // Keep last 50
+        }
+    }, [uploadHistory]);
+
+    const addToast = (message: string, type: Toast["type"] = "info") => {
+        const id = Math.random().toString(36).substring(2, 9);
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+        }, 5000);
+    };
 
     // Fetch data from backend
     const fetchData = useCallback(async (path: string = "", mode?: string, category?: string) => {
@@ -302,12 +372,29 @@ export default function Dashboard() {
     const handleUpload = async (filesToUpload: FileList | null, destinationOverride?: string) => {
         if (!filesToUpload || filesToUpload.length === 0) return;
 
-        setIsUploading(true);
-        setUploadProgress(0);
-        setUploadStatus("uploading");
-        setNotification({ message: "Iniciando envio...", type: "info" });
-
         const targetPath = destinationOverride !== undefined ? destinationOverride : currentPath;
+
+        // Add to history
+        const newHistoryItems: UploadHistoryItem[] = [];
+        for (let i = 0; i < filesToUpload.length; i++) {
+            const file = filesToUpload[i];
+            const historyItem: UploadHistoryItem = {
+                id: Math.random().toString(36).substring(2, 11),
+                name: file.name,
+                path: targetPath,
+                status: "uploading",
+                progress: 0,
+                size: file.size,
+                timestamp: Date.now(),
+                files: [file] // Store the specific file for retry
+            };
+            newHistoryItems.push(historyItem);
+        }
+
+        setUploadHistory(prev => [...newHistoryItems, ...prev]);
+        setIsUploadPanelOpen(true);
+        addToast(`Iniciando envio de ${filesToUpload.length} arquivo(s)...`, "info");
+
         const formData = new FormData();
         formData.append("path", targetPath);
         for (let i = 0; i < filesToUpload.length; i++) {
@@ -320,23 +407,55 @@ export default function Dashboard() {
                 onUploadProgress: (progressEvent) => {
                     const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
                     setUploadProgress(percentCompleted);
+
+                    // Update all active items in history
+                    setUploadHistory(prev => prev.map(item => {
+                        if (newHistoryItems.some(ni => ni.id === item.id)) {
+                            return { ...item, progress: percentCompleted };
+                        }
+                        return item;
+                    }));
                 }
             });
-            setUploadStatus("success");
-            setNotification({ message: "Arquivos enviados com sucesso!", type: "success" });
-            fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
 
-            // Auto hide notification
-            setTimeout(() => setNotification({ message: "", type: null }), 5000);
+            setUploadStatus("success");
+            addToast(`${filesToUpload.length} arquivo(s) enviados com sucesso!`, "success");
+
+            setUploadHistory(prev => prev.map(item => {
+                if (newHistoryItems.some(ni => ni.id === item.id)) {
+                    return { ...item, status: "success", progress: 100 };
+                }
+                return item;
+            }));
+
+            fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
         } catch (err: any) {
             setUploadStatus("error");
             const errorMsg = err.response?.data?.error || err.message;
-            setNotification({ message: `Erro no envio: ${errorMsg}`, type: "error" });
+            addToast(`Erro no envio: ${errorMsg}`, "error");
+
+            setUploadHistory(prev => prev.map(item => {
+                if (newHistoryItems.some(ni => ni.id === item.id)) {
+                    return { ...item, status: "error", error: errorMsg };
+                }
+                return item;
+            }));
             console.error("Upload error:", err);
-            alert("Erro ao enviar arquivos: " + errorMsg);
         } finally {
             setIsUploading(false);
             setUploadProgress(0);
+        }
+    };
+
+    const handleRetryUpload = (item: UploadHistoryItem) => {
+        if (item.files) {
+            // Need to convert File[]/FileList back or pass directly
+            const itemList = item.files as any;
+            // Remove the failed item from history before retrying to avoid double entries
+            setUploadHistory(prev => prev.filter(h => h.id !== item.id));
+            handleUpload(itemList, item.path);
+        } else {
+            addToast("Arquivo não disponível para reenvio. Tente selecionar o arquivo novamente.", "warning");
         }
     };
 
@@ -673,6 +792,7 @@ export default function Dashboard() {
                 onViewChange={handleViewChange}
                 onCategoryChange={handleCategoryChange}
                 onLogout={handleLogout}
+                onOpenUploads={() => setIsUploadPanelOpen(!isUploadPanelOpen)}
                 theme={theme}
             />
 
@@ -997,24 +1117,6 @@ export default function Dashboard() {
                         </>
                     )}
                 </div>
-
-                {/* Upload Status Overlay */}
-                <AnimatePresence>
-                    {isUploading && (
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            className="absolute bottom-8 right-8 bg-slate-900 text-white p-6 rounded-3xl shadow-2xl z-50 flex items-center gap-4"
-                        >
-                            <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-                            <div>
-                                <h4 className="font-bold">Enviando Arquivos...</h4>
-                                <p className="text-xs text-white/60">Por favor, aguarde o processamento</p>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
             </main>
 
             {/* File Preview Modal */}
@@ -1043,7 +1145,7 @@ export default function Dashboard() {
                 currentPath={currentPath}
             />
 
-            {/* Upload Modal */}
+            {/* Upload Modal (V3 Upgraded) */}
             <UploadModal
                 isOpen={showUploadModal}
                 onClose={() => {
@@ -1057,62 +1159,176 @@ export default function Dashboard() {
                 initialFiles={pendingFiles}
             />
 
-            {/* Upload Progress Overlay */}
+            {/* Uploads History Panel */}
             <AnimatePresence>
-                {isUploading && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 50 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 50 }}
-                        className="fixed bottom-8 right-8 z-[100] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 w-80"
-                    >
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl">
-                                <RefreshCw className="text-blue-600 dark:text-blue-400 animate-spin" size={20} />
+                {isUploadPanelOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsUploadPanelOpen(false)}
+                            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[110]"
+                        />
+                        <motion.div
+                            initial={{ x: "100%" }}
+                            animate={{ x: 0 }}
+                            exit={{ x: "100%" }}
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className="fixed right-0 top-0 bottom-0 w-full md:w-[400px] bg-white dark:bg-slate-900 shadow-2xl z-[120] border-l border-slate-100 dark:border-slate-800 flex flex-col"
+                        >
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 backdrop-blur">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl">
+                                        <History className="text-blue-600 dark:text-blue-400" size={20} />
+                                    </div>
+                                    <h3 className="font-black text-slate-800 dark:text-white tracking-tight uppercase text-sm">Histórico de Uploads</h3>
+                                </div>
+                                <button
+                                    onClick={() => setIsUploadPanelOpen(false)}
+                                    className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                                >
+                                    <X size={20} />
+                                </button>
                             </div>
-                            <div className="flex-1">
-                                <h3 className="text-sm font-bold text-slate-800 dark:text-white">Enviando Arquivos</h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">{uploadProgress}% concluído</p>
+
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                {uploadHistory.length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                                        <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-full mb-4">
+                                            <UploadCloud size={40} className="text-slate-300 dark:text-slate-600" />
+                                        </div>
+                                        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Nenhum upload registrado</p>
+                                    </div>
+                                ) : (
+                                    uploadHistory.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-4 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group"
+                                        >
+                                            {item.status === "uploading" && (
+                                                <motion.div
+                                                    className="absolute bottom-0 left-0 h-1 bg-blue-500"
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${item.progress}%` }}
+                                                />
+                                            )}
+
+                                            <div className="flex items-start gap-3">
+                                                <div className={cn(
+                                                    "p-2 rounded-xl shrink-0",
+                                                    item.status === "success" ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600" :
+                                                        item.status === "error" ? "bg-rose-50 dark:bg-rose-900/20 text-rose-600" :
+                                                            "bg-blue-50 dark:bg-blue-900/20 text-blue-600"
+                                                )}>
+                                                    {item.status === "success" ? <CheckCircle2 size={18} /> :
+                                                        item.status === "error" ? <AlertCircle size={18} /> :
+                                                            item.status === "uploading" ? <RefreshCw className="animate-spin" size={18} /> :
+                                                                <Clock size={18} />}
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="font-bold text-slate-800 dark:text-white text-sm truncate">{item.name}</h4>
+                                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">{formatBytes(item.size)}</span>
+                                                        <span className="text-[10px] font-medium text-slate-300">•</span>
+                                                        <span className="text-[10px] font-bold text-slate-400 truncate flex items-center gap-1">
+                                                            <HardDrive size={10} /> {item.path || 'Raiz'}
+                                                        </span>
+                                                    </div>
+
+                                                    {item.status === "error" && (
+                                                        <p className="text-[10px] text-rose-500 font-bold mt-2 bg-rose-50 dark:bg-rose-950/30 p-1.5 rounded-lg border border-rose-100 dark:border-rose-900/50">
+                                                            {item.error}
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex flex-col gap-2">
+                                                    {item.status === "error" && (
+                                                        <button
+                                                            onClick={() => handleRetryUpload(item)}
+                                                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-blue-500 transition-colors"
+                                                            title="Tentar novamente"
+                                                        >
+                                                            <RotateCcw size={16} />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => setUploadHistory(prev => prev.filter(h => h.id !== item.id))}
+                                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                        title="Remover do histórico"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
-                        </div>
-                        <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                            <motion.div
-                                className="h-full bg-blue-600"
-                                initial={{ width: 0 }}
-                                animate={{ width: `${uploadProgress}%` }}
-                                transition={{ duration: 0.3 }}
-                            />
-                        </div>
-                    </motion.div>
+
+                            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                                <button
+                                    onClick={() => {
+                                        if (confirm("Limpar todo o histórico de uploads? (Os arquivos no disco não serão afetados)")) {
+                                            setUploadHistory([]);
+                                            localStorage.removeItem("upload_history");
+                                        }
+                                    }}
+                                    disabled={uploadHistory.length === 0}
+                                    className="w-full py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all disabled:opacity-50"
+                                >
+                                    Limpar Histórico
+                                </button>
+                            </div>
+                        </motion.div>
+                    </>
                 )}
             </AnimatePresence>
 
-            {/* Notification Toast */}
-            <AnimatePresence>
-                {notification.message && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        className={cn(
-                            "fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3 border",
-                            notification.type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-800" :
-                                notification.type === "error" ? "bg-rose-50 border-rose-100 text-rose-800" :
-                                    "bg-white border-slate-200 text-slate-800"
-                        )}
-                    >
-                        {notification.type === "success" && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
-                        {notification.type === "error" && <div className="w-2 h-2 rounded-full bg-rose-500" />}
-                        <span className="text-sm font-bold">{notification.message}</span>
-                        <button
-                            onClick={() => setNotification({ message: "", type: null })}
-                            className="ml-4 opacity-50 hover:opacity-100 transition-opacity"
+            {/* Global Toast System */}
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] flex flex-col gap-3 pointer-events-none">
+                <AnimatePresence>
+                    {toasts.map((toast) => (
+                        <motion.div
+                            key={toast.id}
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className={cn(
+                                "pointer-events-auto px-6 py-4 rounded-2xl shadow-2xl border flex items-center gap-4 min-w-[320px] max-w-md",
+                                toast.type === "success" ? "bg-white dark:bg-slate-900 border-emerald-100 dark:border-emerald-900" :
+                                    toast.type === "error" ? "bg-white dark:bg-slate-900 border-rose-100 dark:border-rose-900" :
+                                        toast.type === "warning" ? "bg-white dark:bg-slate-900 border-amber-100 dark:border-amber-900" :
+                                            "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800"
+                            )}
                         >
-                            <Trash2 size={14} />
-                        </button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                            <div className={cn(
+                                "p-2 rounded-xl",
+                                toast.type === "success" ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600" :
+                                    toast.type === "error" ? "bg-rose-50 dark:bg-rose-900/20 text-rose-600" :
+                                        toast.type === "warning" ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600" :
+                                            "bg-blue-50 dark:bg-blue-900/20 text-blue-600"
+                            )}>
+                                {toast.type === "success" ? <CheckCircle2 size={18} /> :
+                                    toast.type === "error" ? <XCircle size={18} /> :
+                                        toast.type === "warning" ? <AlertCircle size={18} /> :
+                                            <RefreshCw size={18} className="animate-spin" />}
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-sm font-black text-slate-800 dark:text-white tracking-tight">{toast.message}</p>
+                            </div>
+                            <button
+                                onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                                className="text-slate-300 hover:text-slate-500 transition-colors p-1"
+                            >
+                                <X size={16} />
+                            </button>
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+            </div>
         </div>
     );
 }

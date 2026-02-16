@@ -27,6 +27,7 @@ interface SidebarProps {
     onViewChange: (view: "home" | "recent" | "favorites" | "trash" | "settings" | "explorer") => void;
     onCategoryChange: (category: string) => void;
     onLogout: () => void;
+    onOpenUploads: () => void;
     theme?: "light" | "dark";
 }
 
@@ -36,6 +37,7 @@ export default function Sidebar({
     onViewChange,
     onCategoryChange,
     onLogout,
+    onOpenUploads,
     theme = "light"
 }: SidebarProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -59,6 +61,7 @@ export default function Sidebar({
         { id: "explorer", label: "Arquivos", icon: HardDrive, view: "explorer" as const },
         { id: "recent", label: "Recentes", icon: Clock, view: "recent" as const },
         { id: "favorites", label: "Favoritos", icon: Star, view: "favorites" as const },
+        { id: "uploads", label: "Uploads", icon: History, action: onOpenUploads },
         { id: "settings", label: "Configuração", icon: Settings, view: "settings" as const },
         { id: "trash", label: "Lixeira", icon: Trash2, view: "trash" as const },
     ];
@@ -152,8 +155,8 @@ export default function Sidebar({
                         <NavButton
                             key={item.id}
                             item={item}
-                            isActive={activeView === item.view}
-                            onClick={() => onViewChange(item.view)}
+                            isActive={activeView === (item as any).view}
+                            onClick={() => (item as any).action ? (item as any).action() : onViewChange((item as any).view)}
                         />
                     ))}
                 </div>
