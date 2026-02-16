@@ -115,12 +115,12 @@ export default function FilePreview({
     };
 
     const fileType = getFileType(file.name);
-    const viewUrl = `${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}&size=full`;
+    const viewUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}&view=true`;
     const downloadUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}`;
 
     // Preload URLs
-    const nextViewUrl = nextFile ? `${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(nextFile.path)}&size=full` : null;
-    const prevViewUrl = prevFile ? `${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(prevFile.path)}&size=full` : null;
+    const nextViewUrl = nextFile ? `${api.defaults.baseURL}/download?path=${encodeURIComponent(nextFile.path)}&view=true` : null;
+    const prevViewUrl = prevFile ? `${api.defaults.baseURL}/download?path=${encodeURIComponent(prevFile.path)}&view=true` : null;
 
     const handleDownload = () => {
         const link = document.createElement('a');
