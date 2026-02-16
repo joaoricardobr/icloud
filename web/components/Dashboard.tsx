@@ -1021,24 +1021,28 @@ export default function Dashboard() {
                                                                 category="imagens"
                                                                 count={categoryStats.imagens?.count || 0}
                                                                 size={categoryStats.imagens?.size || 0}
+                                                                files={categoryStats.imagens?.files || []}
                                                                 onClick={() => handleCategoryChange("imagens")}
                                                             />
                                                             <CategoryCard
                                                                 category="videos"
                                                                 count={categoryStats.videos?.count || 0}
                                                                 size={categoryStats.videos?.size || 0}
+                                                                files={categoryStats.videos?.files || []}
                                                                 onClick={() => handleCategoryChange("videos")}
                                                             />
                                                             <CategoryCard
                                                                 category="musicas"
                                                                 count={categoryStats.musicas?.count || 0}
                                                                 size={categoryStats.musicas?.size || 0}
+                                                                files={categoryStats.musicas?.files || []}
                                                                 onClick={() => handleCategoryChange("musicas")}
                                                             />
                                                             <CategoryCard
                                                                 category="documentos"
                                                                 count={categoryStats.documentos?.count || 0}
                                                                 size={categoryStats.documentos?.size || 0}
+                                                                files={categoryStats.documentos?.files || []}
                                                                 onClick={() => handleCategoryChange("documentos")}
                                                             />
                                                         </motion.div>

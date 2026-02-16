@@ -103,13 +103,13 @@ export default function FileGrid({
                                                 </div>
                                             )}
                                             <div className={cn(
-                                                "w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0",
+                                                "w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 relative",
                                                 color.replace('text-', 'bg-').replace('600', '100'),
                                                 "dark:bg-slate-800" // Simplified for dark mode
                                             )}>
-                                                {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|mp4|mkv|mov)$/i)) ? (
+                                                {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) ? (
                                                     <Image
-                                                        src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}`}
+                                                        src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}&size=medium`}
                                                         alt={file.name}
                                                         className="w-full h-full object-cover relative z-10"
                                                         width={40}
@@ -124,6 +124,32 @@ export default function FileGrid({
                                                             }
                                                         }}
                                                     />
+                                                ) : (file.name.match(/\.(mp4|mkv|mov|avi|webm|flv|wmv)$/i)) ? (
+                                                    <>
+                                                        <Image
+                                                            src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}&size=medium`}
+                                                            alt={file.name}
+                                                            className="w-full h-full object-cover relative z-10"
+                                                            width={40}
+                                                            height={40}
+                                                            unoptimized
+                                                            onError={(e) => {
+                                                                const target = e.target as HTMLImageElement;
+                                                                target.style.display = 'none';
+                                                                const container = target.parentElement;
+                                                                if (container) {
+                                                                    container.innerHTML = `<svg class="${color} w-5 h-5 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path></svg>`;
+                                                                }
+                                                            }}
+                                                        />
+                                                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-20">
+                                                            <div className="w-4 h-4 bg-white/90 rounded-full flex items-center justify-center">
+                                                                <svg className="w-2 h-2 text-blue-600 ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                                                                    <path d="M8 5v14l11-7z" />
+                                                                </svg>
+                                                            </div>
+                                                        </div>
+                                                    </>
                                                 ) : (
                                                     <Icon size={20} className={color} />
                                                 )}
@@ -256,11 +282,11 @@ export default function FileGrid({
                                     color.replace('text-', 'from-').replace('600', '500')
                                 )} />
 
-                                {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|mp4|mkv|mov)$/i)) ? (
+                                {(file.name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) ? (
                                     <Image
-                                        src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}`}
+                                        src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}&size=medium`}
                                         alt={file.name}
-                                        className="w-full h-full object-cover relative z-10"
+                                        className="w-full h-full object-cover relative z-10 rounded-2xl"
                                         width={96}
                                         height={96}
                                         unoptimized
@@ -274,6 +300,44 @@ export default function FileGrid({
                                             }
                                         }}
                                     />
+                                ) : (file.name.match(/\.(mp4|mkv|mov|avi|webm|flv|wmv)$/i)) ? (
+                                    <>
+                                        <Image
+                                            src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}&size=medium`}
+                                            alt={file.name}
+                                            className="w-full h-full object-cover relative z-10 rounded-2xl"
+                                            width={96}
+                                            height={96}
+                                            unoptimized
+                                            onError={(e) => {
+                                                const target = e.target as HTMLImageElement;
+                                                target.style.display = 'none';
+                                                const container = target.parentElement;
+                                                if (container) {
+                                                    container.innerHTML = `<svg class="${color} w-8 h-8 md:w-11 md:h-11 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path></svg>`;
+                                                }
+                                            }}
+                                        />
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[2px] z-20 rounded-2xl">
+                                            <div className="w-10 h-10 md:w-12 md:h-12 bg-white/95 rounded-full flex items-center justify-center shadow-lg">
+                                                <svg className="w-5 h-5 md:w-6 md:h-6 text-blue-600 ml-1" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M8 5v14l11-7z" />
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : file.isDirectory ? (
+                                    <div className="relative z-10 flex flex-col items-center justify-center">
+                                        <div className="text-3xl md:text-4xl mb-1">
+                                            {file.name.includes('Imagens') || file.name.includes('Pictures') ? '🏙️' :
+                                                file.name.includes('Vídeos') || file.name.includes('Videos') ? '🎬' :
+                                                    file.name.includes('Músicas') || file.name.includes('Music') ? '🎵' :
+                                                        file.name.includes('Documentos') || file.name.includes('Documents') ? '📄' :
+                                                            file.name.includes('Downloads') || file.name.includes('Transferências') ? '📥' :
+                                                                file.name.includes('Uploads') ? '🏠' :
+                                                                    '📁'}
+                                        </div>
+                                    </div>
                                 ) : (
                                     <Icon size={file.isDirectory ? 36 : 42} className={cn(color, "relative z-10 drop-shadow-sm")} />
                                 )}

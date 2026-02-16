@@ -4,23 +4,34 @@ import { motion } from "framer-motion";
 import { LucideIcon } from "lucide-react";
 import { formatBytes, getCategoryIcon, getCategoryColor, getCategoryName, cn } from "@/lib/utils";
 import { scaleIn } from "@/lib/animations";
+import api from "@/lib/api";
+import Image from "next/image";
+
+interface FileItem {
+    name: string;
+    path: string;
+    size: number;
+}
 
 interface CategoryCardProps {
     category: string;
     count: number;
     size: number;
     onClick: () => void;
+    files?: FileItem[];
 }
 
 export default function CategoryCard({
     category,
     count,
     size,
-    onClick
+    onClick,
+    files = []
 }: CategoryCardProps) {
     const Icon = getCategoryIcon(category);
     const gradientColor = getCategoryColor(category);
     const displayName = getCategoryName(category);
+    const recentFiles = files.slice(0, 4);
 
     return (
         <motion.div
@@ -71,7 +82,7 @@ export default function CategoryCard({
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{displayName}</h3>
 
                 {/* Stats */}
-                <div className="space-y-1">
+                <div className="space-y-1 mb-4">
                     <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
                         <span className="font-black text-slate-900 dark:text-white text-lg">{count.toLocaleString()}</span> arquivo{count !== 1 ? 's' : ''}
                     </p>
@@ -79,6 +90,28 @@ export default function CategoryCard({
                         {formatBytes(size)} total
                     </p>
                 </div>
+
+                {/* Recent Files Thumbnails */}
+                {recentFiles.length > 0 && (
+                    <div className="grid grid-cols-4 gap-2 mb-4">
+                        {recentFiles.map((file, i) => (
+                            <div key={i} className="aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
+                                <Image
+                                    src={`${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}&size=thumb`}
+                                    alt={file.name}
+                                    className="w-full h-full object-cover"
+                                    width={50}
+                                    height={50}
+                                    unoptimized
+                                    onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                    }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                )}
 
                 {/* View All Link */}
                 <div className="mt-6 flex items-center text-xs font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 group-hover:gap-2 transition-all">

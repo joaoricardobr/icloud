@@ -56,8 +56,8 @@ const checkAccess = async (dirPath: string): Promise<boolean> => {
 
 // Scan directory for files by category (Async Recursion with strict limits)
 const scanDirectoryForCategory = async (dirPath: string, category: keyof typeof FILE_CATEGORIES, maxFiles = 500, depth = 0): Promise<any[]> => {
-    // Increased maxFiles and depth slightly for better results
-    if (depth > 5 || maxFiles <= 0) return [];
+    // Increased depth to 7 for better coverage
+    if (depth > 7 || maxFiles <= 0) return [];
 
     // STRICT IGNORE LIST - Vital for preventing Permission Denied errors and hanging
     if (IGNORED_DIRS.some(ignored => dirPath.includes(path.sep + ignored) || dirPath.endsWith(path.sep + ignored))) {
@@ -150,7 +150,7 @@ const getCategoryStats = async (disks: any[]) => {
                     // Use Promise.all to scan categories in parallel for this folder
                     await Promise.all(
                         (Object.keys(FILE_CATEGORIES) as (keyof typeof FILE_CATEGORIES)[]).map(async (category) => {
-                            const files = await scanDirectoryForCategory(folderPath, category, 100);
+                            const files = await scanDirectoryForCategory(folderPath, category, 1000); // Increased from 100 for real statistics
                             if (files.length > 0) {
                                 stats[category].files.push(...files);
                                 stats[category].count += files.length;
@@ -647,10 +647,12 @@ export const createFolder = async (req: Request, res: Response) => {
     }
 };
 
-// Get thumbnail
+// Get thumbnail with multiple size options
 export const getThumbnail = async (req: Request, res: Response) => {
     try {
         const filePath = req.query.path as string;
+        const sizeParam = (req.query.size as string) || 'thumb';
+
         if (!filePath) {
             return res.status(400).json({ error: 'Path is required' });
         }
@@ -668,41 +670,66 @@ export const getThumbnail = async (req: Request, res: Response) => {
             return res.json({ hasThumbnail: false });
         }
 
-        const hash = crypto.createHash('md5').update(absolutePath).digest('hex');
+        // Define size presets
+        const sizes: Record<string, { width: number; height: number; quality: number }> = {
+            thumb: { width: 200, height: 200, quality: 80 },      // Grid pequeno
+            medium: { width: 600, height: 600, quality: 85 },     // Grid grande / Preview rápido
+            full: { width: 1920, height: 1920, quality: 90 }      // Visualização completa
+        };
+
+        const dimensions = sizes[sizeParam] || sizes.thumb;
+
+        // Create unique hash for this file + size combination
+        const hash = crypto.createHash('md5').update(absolutePath + sizeParam).digest('hex');
         const thumbDir = path.join(__dirname, '..', '..', 'thumbnails');
         if (!fs.existsSync(thumbDir)) fs.mkdirSync(thumbDir, { recursive: true });
 
         const thumbPath = path.join(thumbDir, `${hash}.jpg`);
 
-        // Use cache if exists
+        // Use cache if exists and is newer than source file
         if (fs.existsSync(thumbPath)) {
-            return res.sendFile(thumbPath);
+            const thumbStats = await fs.promises.stat(thumbPath);
+            const sourceStats = await fs.promises.stat(absolutePath);
+            if (thumbStats.mtime >= sourceStats.mtime) {
+                return res.sendFile(thumbPath);
+            }
         }
 
         if (isImage) {
-            await sharp(absolutePath)
-                .resize(200, 200, { fit: 'cover' })
-                .toFormat('jpeg')
-                .toFile(thumbPath);
-            return res.sendFile(thumbPath);
+            try {
+                await sharp(absolutePath)
+                    .resize(dimensions.width, dimensions.height, {
+                        fit: 'inside',  // Mantém proporção
+                        withoutEnlargement: true  // Não aumenta imagens pequenas
+                    })
+                    .toFormat('jpeg', { quality: dimensions.quality })
+                    .toFile(thumbPath);
+                return res.sendFile(thumbPath);
+            } catch (err) {
+                console.error('[Sharp Error]', err);
+                return res.status(500).json({ error: 'Failed to generate image thumbnail' });
+            }
         }
 
         if (isVideo) {
-            ffmpeg(absolutePath)
-                .on('end', () => {
-                    res.sendFile(thumbPath);
-                })
-                .on('error', (err) => {
-                    console.error('[FFMPEG Error]', err);
-                    res.json({ hasThumbnail: false });
-                })
-                .screenshots({
-                    timestamps: ['5%'],
-                    filename: path.basename(thumbPath),
-                    folder: path.dirname(thumbPath),
-                    size: '200x200'
-                });
-            return;
+            return new Promise((resolve) => {
+                ffmpeg(absolutePath)
+                    .on('end', () => {
+                        res.sendFile(thumbPath);
+                        resolve(undefined);
+                    })
+                    .on('error', (err) => {
+                        console.error('[FFMPEG Error]', err);
+                        res.json({ hasThumbnail: false });
+                        resolve(undefined);
+                    })
+                    .screenshots({
+                        timestamps: ['10%'],  // Captura aos 10% do vídeo
+                        filename: path.basename(thumbPath),
+                        folder: path.dirname(thumbPath),
+                        size: `${dimensions.width}x${dimensions.height}`
+                    });
+            });
         }
 
         res.json({ hasThumbnail: false });

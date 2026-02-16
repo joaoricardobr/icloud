@@ -115,12 +115,12 @@ export default function FilePreview({
     };
 
     const fileType = getFileType(file.name);
-    const viewUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}&view=true`;
+    const viewUrl = `${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(file.path)}&size=full`;
     const downloadUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}`;
 
     // Preload URLs
-    const nextViewUrl = nextFile ? `${api.defaults.baseURL}/download?path=${encodeURIComponent(nextFile.path)}&view=true` : null;
-    const prevViewUrl = prevFile ? `${api.defaults.baseURL}/download?path=${encodeURIComponent(prevFile.path)}&view=true` : null;
+    const nextViewUrl = nextFile ? `${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(nextFile.path)}&size=full` : null;
+    const prevViewUrl = prevFile ? `${api.defaults.baseURL}/thumbnail?path=${encodeURIComponent(prevFile.path)}&size=full` : null;
 
     const handleDownload = () => {
         const link = document.createElement('a');
@@ -198,15 +198,16 @@ export default function FilePreview({
                             }}
                             src={viewUrl}
                             alt={file.name}
+                            loading="eager"
                             onLoad={() => setIsLoading(false)}
                             className={cn(
                                 "shadow-2xl transition-all duration-300 ease-out",
-                                isLoading ? "opacity-0" : "opacity-100",
+                                isLoading ? "opacity-0 blur-sm" : "opacity-100",
                                 zoomMode === "fit" && zoom <= 100 ? "max-w-full max-h-full object-contain rounded-2xl" : "max-w-none max-h-none"
                             )}
                             style={{
                                 scale: zoom / 100,
-                                imageRendering: 'auto',
+                                imageRendering: zoom > 200 ? 'pixelated' : 'auto',
                                 touchAction: 'none'
                             }}
                             initial={{ opacity: 0 }}
