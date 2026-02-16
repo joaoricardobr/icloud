@@ -150,6 +150,15 @@ app.get('/', (req, res) => {
     res.json({ status: 'CloudDesk Professional Backend 🚀', clients: clients.length });
 });
 
+// Global Error Handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('[Global Error]', err);
+    res.status(err.status || 500).json({
+        error: err.message || 'Erro interno no servidor',
+        code: err.code || 'INTERNAL_ERROR'
+    });
+});
+
 const server = app.listen(PORT, () => {
     console.log(`Professional Backend listening on port ${PORT}`);
 });

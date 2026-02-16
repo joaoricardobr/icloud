@@ -19,10 +19,15 @@ const storage = multer.diskStorage({
             dest = path.join(os.homedir(), 'Transferências', 'Uploads Online');
         }
 
-        if (!fs.existsSync(dest)) {
-            fs.mkdirSync(dest, { recursive: true });
+        try {
+            if (!fs.existsSync(dest)) {
+                fs.mkdirSync(dest, { recursive: true });
+            }
+            cb(null, dest);
+        } catch (err: any) {
+            console.error('[Multer Storage] Error creating destination:', err);
+            cb(err, '');
         }
-        cb(null, dest);
     },
     filename: (req, file, cb) => {
         cb(null, Date.now() + '-' + file.originalname);

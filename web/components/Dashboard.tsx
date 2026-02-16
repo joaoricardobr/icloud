@@ -90,6 +90,9 @@ export default function Dashboard() {
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
     const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
+    const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" | null }>({ message: "", type: null });
 
     // Fetch data from backend
     const fetchData = useCallback(async (path: string = "", mode?: string, category?: string) => {
@@ -300,6 +303,10 @@ export default function Dashboard() {
         if (!filesToUpload || filesToUpload.length === 0) return;
 
         setIsUploading(true);
+        setUploadProgress(0);
+        setUploadStatus("uploading");
+        setNotification({ message: "Iniciando envio...", type: "info" });
+
         const targetPath = destinationOverride !== undefined ? destinationOverride : currentPath;
         const formData = new FormData();
         formData.append("path", targetPath);
@@ -309,13 +316,27 @@ export default function Dashboard() {
 
         try {
             await api.post("upload", formData, {
-                headers: { "Content-Type": "multipart/form-data" }
+                headers: { "Content-Type": "multipart/form-data" },
+                onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    setUploadProgress(percentCompleted);
+                }
             });
+            setUploadStatus("success");
+            setNotification({ message: "Arquivos enviados com sucesso!", type: "success" });
             fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
+
+            // Auto hide notification
+            setTimeout(() => setNotification({ message: "", type: null }), 5000);
         } catch (err: any) {
-            alert("Erro ao enviar arquivos: " + (err.response?.data?.error || err.message));
+            setUploadStatus("error");
+            const errorMsg = err.response?.data?.error || err.message;
+            setNotification({ message: `Erro no envio: ${errorMsg}`, type: "error" });
+            console.error("Upload error:", err);
+            alert("Erro ao enviar arquivos: " + errorMsg);
         } finally {
             setIsUploading(false);
+            setUploadProgress(0);
         }
     };
 
@@ -1019,6 +1040,63 @@ export default function Dashboard() {
                 onOpenCreateFolder={() => setShowCreateFolderModal(true)}
                 initialFiles={pendingFiles}
             />
+
+            {/* Upload Progress Overlay */}
+            <AnimatePresence>
+                {isUploading && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 50 }}
+                        className="fixed bottom-8 right-8 z-[100] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 w-80"
+                    >
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl">
+                                <RefreshCw className="text-blue-600 dark:text-blue-400 animate-spin" size={20} />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white">Enviando Arquivos</h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{uploadProgress}% concluído</p>
+                            </div>
+                        </div>
+                        <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <motion.div
+                                className="h-full bg-blue-600"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${uploadProgress}%` }}
+                                transition={{ duration: 0.3 }}
+                            />
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Notification Toast */}
+            <AnimatePresence>
+                {notification.message && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        className={cn(
+                            "fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3 border",
+                            notification.type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-800" :
+                                notification.type === "error" ? "bg-rose-50 border-rose-100 text-rose-800" :
+                                    "bg-white border-slate-200 text-slate-800"
+                        )}
+                    >
+                        {notification.type === "success" && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                        {notification.type === "error" && <div className="w-2 h-2 rounded-full bg-rose-500" />}
+                        <span className="text-sm font-bold">{notification.message}</span>
+                        <button
+                            onClick={() => setNotification({ message: "", type: null })}
+                            className="ml-4 opacity-50 hover:opacity-100 transition-opacity"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

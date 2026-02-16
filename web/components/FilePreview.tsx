@@ -126,7 +126,7 @@ export default function FilePreview({
             case 'image':
                 return (
                     <div className={cn(
-                        "flex items-center justify-center h-full p-4 md:p-8 overflow-auto scrollbar-hide bg-slate-100/50",
+                        "flex items-center justify-center h-full overflow-auto scrollbar-hide bg-slate-900/5",
                         zoomMode === "original" ? "items-start justify-start cursor-zoom-out" : "cursor-zoom-in"
                     )}
                         onClick={() => setZoomMode(prev => prev === "fit" ? "original" : "fit")}
@@ -135,10 +135,13 @@ export default function FilePreview({
                             src={viewUrl}
                             alt={file.name}
                             className={cn(
-                                "rounded-2xl shadow-2xl transition-all duration-300",
-                                zoomMode === "fit" ? "max-w-full max-h-full object-contain" : "max-w-none max-h-none"
+                                "shadow-2xl transition-all duration-300",
+                                zoomMode === "fit" ? "max-w-full max-h-full object-contain rounded-2xl" : "max-w-none max-h-none"
                             )}
-                            style={zoomMode === "fit" ? { transform: `scale(${zoom / 100})` } : {}}
+                            style={{
+                                ...(zoomMode === "fit" ? { transform: `scale(${zoom / 100})` } : {}),
+                                imageRendering: 'auto'
+                            }}
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ duration: 0.3 }}
@@ -373,6 +376,17 @@ export default function FilePreview({
                                     </button>
                                 </div>
                             )}
+
+                            <div className="w-px h-6 bg-slate-100 mx-1 hidden md:block" />
+
+                            <button
+                                onClick={() => window.open(viewUrl, '_blank')}
+                                className="p-3 bg-white text-slate-600 rounded-2xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                                title="Ver em Qualidade Total (Nova Aba)"
+                            >
+                                <Maximize size={18} />
+                                <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Tela Cheia</span>
+                            </button>
 
                             {/* Action buttons */}
                             <button
