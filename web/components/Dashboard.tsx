@@ -271,7 +271,7 @@ export default function Dashboard() {
             setLoading(false);
             setIsRefreshing(false);
         }
-    }, []); // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [disks.length, files.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);

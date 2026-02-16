@@ -200,7 +200,7 @@ export default function Login() {
                                     <button type="button" className="text-[10px] font-black text-blue-400 hover:text-blue-300 uppercase tracking-wider transition-colors">Recover</button>
                                 </div>
                                 <div className="relative group/input font-mono">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within/input:text-blue-400 transition-colors" size={18} />
+                                    <LockIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within/input:text-blue-400 transition-colors" size={18} />
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         placeholder="••••••••••••"
