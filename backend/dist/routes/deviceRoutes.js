@@ -19,10 +19,16 @@ const storage = multer_1.default.diskStorage({
         if (!dest || dest === '/' || dest === '') {
             dest = path_1.default.join(os_1.default.homedir(), 'Transferências', 'Uploads Online');
         }
-        if (!fs_1.default.existsSync(dest)) {
-            fs_1.default.mkdirSync(dest, { recursive: true });
+        try {
+            if (!fs_1.default.existsSync(dest)) {
+                fs_1.default.mkdirSync(dest, { recursive: true });
+            }
+            cb(null, dest);
         }
-        cb(null, dest);
+        catch (err) {
+            console.error('[Multer Storage] Error creating destination:', err);
+            cb(err, '');
+        }
     },
     filename: (req, file, cb) => {
         cb(null, Date.now() + '-' + file.originalname);

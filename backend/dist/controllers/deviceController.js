@@ -54,8 +54,8 @@ const checkAccess = async (dirPath) => {
 };
 // Scan directory for files by category (Async Recursion with strict limits)
 const scanDirectoryForCategory = async (dirPath, category, maxFiles = 500, depth = 0) => {
-    // Increased maxFiles and depth slightly for better results
-    if (depth > 5 || maxFiles <= 0)
+    // Increased depth to 7 for better coverage
+    if (depth > 7 || maxFiles <= 0)
         return [];
     // STRICT IGNORE LIST - Vital for preventing Permission Denied errors and hanging
     if (IGNORED_DIRS.some(ignored => dirPath.includes(path_1.default.sep + ignored) || dirPath.endsWith(path_1.default.sep + ignored))) {
@@ -141,7 +141,7 @@ const getCategoryStats = async (disks) => {
                 if (fs_1.default.existsSync(folderPath)) { // Sync check is fine for existence of known paths
                     // Use Promise.all to scan categories in parallel for this folder
                     await Promise.all(Object.keys(FILE_CATEGORIES).map(async (category) => {
-                        const files = await scanDirectoryForCategory(folderPath, category, 100);
+                        const files = await scanDirectoryForCategory(folderPath, category, 1000); // Increased from 100 for real statistics
                         if (files.length > 0) {
                             stats[category].files.push(...files);
                             stats[category].count += files.length;
@@ -546,8 +546,15 @@ const downloadFile = async (req, res) => {
             return res.status(400).json({ error: 'Path is required' });
         }
         const absolutePath = validatePath(filePath);
+        const isView = req.query.view === 'true';
         if (!fs_1.default.existsSync(absolutePath)) {
             return res.status(404).json({ error: 'File not found' });
+        }
+        if (isView) {
+            // For images and documents, sendFile allows browser to render inline
+            // We set Content-Disposition to inline for good measure
+            res.setHeader('Content-Disposition', 'inline');
+            return res.sendFile(absolutePath);
         }
         res.download(absolutePath);
     }
@@ -615,10 +622,11 @@ const createFolder = async (req, res) => {
     }
 };
 exports.createFolder = createFolder;
-// Get thumbnail
+// Get thumbnail with multiple size options
 const getThumbnail = async (req, res) => {
     try {
         const filePath = req.query.path;
+        const sizeParam = req.query.size || 'thumb';
         if (!filePath) {
             return res.status(400).json({ error: 'Path is required' });
         }
@@ -632,38 +640,62 @@ const getThumbnail = async (req, res) => {
         if (!isImage && !isVideo) {
             return res.json({ hasThumbnail: false });
         }
-        const hash = crypto_1.default.createHash('md5').update(absolutePath).digest('hex');
+        // Define size presets
+        const sizes = {
+            thumb: { width: 200, height: 200, quality: 80 }, // Grid pequeno
+            medium: { width: 600, height: 600, quality: 85 }, // Grid grande / Preview rápido
+            full: { width: 1920, height: 1920, quality: 90 } // Visualização completa
+        };
+        const dimensions = sizes[sizeParam] || sizes.thumb;
+        // Create unique hash for this file + size combination
+        const hash = crypto_1.default.createHash('md5').update(absolutePath + sizeParam).digest('hex');
         const thumbDir = path_1.default.join(__dirname, '..', '..', 'thumbnails');
         if (!fs_1.default.existsSync(thumbDir))
             fs_1.default.mkdirSync(thumbDir, { recursive: true });
         const thumbPath = path_1.default.join(thumbDir, `${hash}.jpg`);
-        // Use cache if exists
+        // Use cache if exists and is newer than source file
         if (fs_1.default.existsSync(thumbPath)) {
-            return res.sendFile(thumbPath);
+            const thumbStats = await fs_1.default.promises.stat(thumbPath);
+            const sourceStats = await fs_1.default.promises.stat(absolutePath);
+            if (thumbStats.mtime >= sourceStats.mtime) {
+                return res.sendFile(thumbPath);
+            }
         }
         if (isImage) {
-            await (0, sharp_1.default)(absolutePath)
-                .resize(200, 200, { fit: 'cover' })
-                .toFormat('jpeg')
-                .toFile(thumbPath);
-            return res.sendFile(thumbPath);
+            try {
+                await (0, sharp_1.default)(absolutePath)
+                    .resize(dimensions.width, dimensions.height, {
+                    fit: 'inside', // Mantém proporção
+                    withoutEnlargement: true // Não aumenta imagens pequenas
+                })
+                    .toFormat('jpeg', { quality: dimensions.quality })
+                    .toFile(thumbPath);
+                return res.sendFile(thumbPath);
+            }
+            catch (err) {
+                console.error('[Sharp Error]', err);
+                return res.status(500).json({ error: 'Failed to generate image thumbnail' });
+            }
         }
         if (isVideo) {
-            (0, fluent_ffmpeg_1.default)(absolutePath)
-                .on('end', () => {
-                res.sendFile(thumbPath);
-            })
-                .on('error', (err) => {
-                console.error('[FFMPEG Error]', err);
-                res.json({ hasThumbnail: false });
-            })
-                .screenshots({
-                timestamps: ['5%'],
-                filename: path_1.default.basename(thumbPath),
-                folder: path_1.default.dirname(thumbPath),
-                size: '200x200'
+            return new Promise((resolve) => {
+                (0, fluent_ffmpeg_1.default)(absolutePath)
+                    .on('end', () => {
+                    res.sendFile(thumbPath);
+                    resolve(undefined);
+                })
+                    .on('error', (err) => {
+                    console.error('[FFMPEG Error]', err);
+                    res.json({ hasThumbnail: false });
+                    resolve(undefined);
+                })
+                    .screenshots({
+                    timestamps: ['10%'], // Captura aos 10% do vídeo
+                    filename: path_1.default.basename(thumbPath),
+                    folder: path_1.default.dirname(thumbPath),
+                    size: `${dimensions.width}x${dimensions.height}`
+                });
             });
-            return;
         }
         res.json({ hasThumbnail: false });
     }
