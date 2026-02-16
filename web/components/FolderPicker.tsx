@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Folder, ChevronRight, HardDrive, Search, ChevronLeft } from "lucide-react";
+import { Folder, ChevronRight, HardDrive, Search as SearchIcon, ChevronLeft } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -87,7 +87,7 @@ export default function FolderPicker({ disks, initialPath = "", onSelect }: Fold
                         <ChevronLeft size={16} />
                     </button>
                 ) : (
-                    <Search size={16} className="text-slate-400 ml-1" />
+                    <SearchIcon size={16} className="text-slate-400 ml-1" />
                 )}
                 <div className="text-xs font-bold text-slate-600 truncate flex-1 leading-none">
                     {currentPath || "Selecione um Disco / Unidade"}

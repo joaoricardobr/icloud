@@ -2,13 +2,13 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    Search,
+    Search as SearchIcon,
     Upload,
     FolderPlus,
     ChevronRight,
     LayoutGrid,
     List,
-    Filter,
+    Filter as FilterIcon,
     ArrowDownAZ,
     ArrowDown10,
     Clock,
@@ -80,14 +80,14 @@ export default function TopBar({
     serverStatus = "checking"
 }: TopBarProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [showFilters, setShowFilters] = useState(false);
+    const [showFilterIcons, setShowFilterIcons] = useState(false);
 
     const filters = [
         { id: "all", label: "Tudo", icon: LayoutGrid },
-        { id: "image", label: "Fotos", icon: Filter },
-        { id: "video", label: "Vídeos", icon: Filter },
-        { id: "audio", label: "Músicas", icon: Filter },
-        { id: "document", label: "Documentos", icon: Filter },
+        { id: "image", label: "Fotos", icon: FilterIcon },
+        { id: "video", label: "Vídeos", icon: FilterIcon },
+        { id: "audio", label: "Músicas", icon: FilterIcon },
+        { id: "document", label: "Documentos", icon: FilterIcon },
         { id: "favorite", label: "Favoritos", icon: Star },
     ];
 
@@ -172,7 +172,7 @@ export default function TopBar({
 
                     {/* Search Bar */}
                     <div className="relative flex-1 md:flex-none">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors" size={16} />
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors" size={16} />
                         <input
                             type="text"
                             placeholder="Buscar arquivos..."
@@ -217,23 +217,23 @@ export default function TopBar({
                         </motion.button>
                     )}
 
-                    {/* Advanced Filters Trigger */}
+                    {/* Advanced FilterIcons Trigger */}
                     <div className="relative">
                         <button
-                            onClick={() => setShowFilters(!showFilters)}
+                            onClick={() => setShowFilterIcons(!showFilterIcons)}
                             className={cn(
                                 "p-2.5 rounded-2xl border transition-all flex items-center gap-2 font-bold text-sm shadow-sm",
-                                showFilters || currentFilter !== "all"
+                                showFilterIcons || currentFilter !== "all"
                                     ? "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400"
                                     : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                             )}
                         >
-                            <Filter size={18} />
+                            <FilterIcon size={18} />
                             <span className="hidden lg:inline">Filtros</span>
                         </button>
 
                         <AnimatePresence>
-                            {showFilters && (
+                            {showFilterIcons && (
                                 <motion.div
                                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -247,7 +247,7 @@ export default function TopBar({
                                                 {filters.map((f) => (
                                                     <button
                                                         key={f.id}
-                                                        onClick={() => { onFilterChange?.(f.id); setShowFilters(false); }}
+                                                        onClick={() => { onFilterChange?.(f.id); setShowFilterIcons(false); }}
                                                         className={cn(
                                                             "px-3 py-2 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2",
                                                             currentFilter === f.id
@@ -268,7 +268,7 @@ export default function TopBar({
                                                 {sortOptions.map((s) => (
                                                     <button
                                                         key={s.id}
-                                                        onClick={() => { onSortChange?.(s.id); setShowFilters(false); }}
+                                                        onClick={() => { onSortChange?.(s.id); setShowFilterIcons(false); }}
                                                         className={cn(
                                                             "w-full px-4 py-2.5 rounded-xl text-sm font-bold transition-all text-left flex items-center justify-between",
                                                             currentSort === s.id

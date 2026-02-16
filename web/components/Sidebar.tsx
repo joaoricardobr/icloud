@@ -8,15 +8,16 @@ import {
     Star,
     Trash2,
     LogOut,
-    Image,
-    Video,
-    Music,
-    FileText,
+    Image as ImageIcon,
+    Video as VideoIcon,
+    Music as MusicIcon,
+    FileText as FileTextIcon,
     ChevronLeft,
     Menu,
     X,
     Settings,
-    HardDrive
+    HardDrive,
+    History as HistoryIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { slideInFromLeft, staggerContainer, staggerItem } from "@/lib/animations";
@@ -61,16 +62,16 @@ export default function Sidebar({
         { id: "explorer", label: "Arquivos", icon: HardDrive, view: "explorer" as const },
         { id: "recent", label: "Recentes", icon: Clock, view: "recent" as const },
         { id: "favorites", label: "Favoritos", icon: Star, view: "favorites" as const },
-        { id: "uploads", label: "Uploads", icon: History, action: onOpenUploads },
+        { id: "uploads", label: "Uploads", icon: HistoryIcon, action: onOpenUploads },
         { id: "settings", label: "Configuração", icon: Settings, view: "settings" as const },
         { id: "trash", label: "Lixeira", icon: Trash2, view: "trash" as const },
     ];
 
     const categories = [
-        { id: "imagens", label: "Imagens", icon: Image, color: "text-green-500" },
-        { id: "videos", label: "Vídeos", icon: Video, color: "text-purple-500" },
-        { id: "musicas", label: "Músicas", icon: Music, color: "text-pink-500" },
-        { id: "documentos", label: "Documentos", icon: FileText, color: "text-red-500" },
+        { id: "imagens", label: "Imagens", icon: ImageIcon, color: "text-green-500" },
+        { id: "videos", label: "Vídeos", icon: VideoIcon, color: "text-purple-500" },
+        { id: "musicas", label: "Músicas", icon: MusicIcon, color: "text-pink-500" },
+        { id: "documentos", label: "Documentos", icon: FileTextIcon, color: "text-red-500" },
     ];
 
     const NavButton = ({ item, isActive, onClick, isCategory = false }: any) => {

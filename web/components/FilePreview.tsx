@@ -14,14 +14,15 @@ import {
     Volume2,
     VolumeX,
     Maximize,
-    FileText,
-    Music,
-    Video,
+    FileText as FileTextIcon,
+    Music as MusicIcon,
+    Video as VideoIcon,
     RotateCcw
 } from "lucide-react";
 import { modalBackdrop, modalContent } from "@/lib/animations";
 import { formatBytes, cn } from "@/lib/utils";
 import api from "@/lib/api";
+import Image from "next/image";
 
 interface FilePreviewProps {
     file: {
@@ -53,7 +54,7 @@ export default function FilePreview({
     const [zoom, setZoom] = useState(100);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
-    const [error, setError] = useState<string>("");
+    const [error, setError] = useState<string | null>(null);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -62,11 +63,16 @@ export default function FilePreview({
 
     const [zoomMode, setZoomMode] = useState<"fit" | "original">("original");
 
+    // Reset error when file changes
+    useEffect(() => {
+        setError(null);
+    }, [file?.path]);
+
     // Reset zoom and states when file changes
     useEffect(() => {
         setZoom(100);
         setZoomMode("original");
-        setError("");
+        setError(null);
         setIsPlaying(false);
         setCurrentTime(0);
         setIsLoading(true);
@@ -246,7 +252,7 @@ export default function FilePreview({
                                 <div className="absolute inset-8 rounded-full opacity-20 border-[1px] border-white/20" />
 
                                 <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center border-4 border-slate-900 shadow-inner z-10">
-                                    <Music className="w-10 h-10 md:w-14 md:h-14 text-white" />
+                                    <MusicIcon className="w-10 h-10 md:w-14 md:h-14 text-white" />
                                 </div>
                                 <div className="absolute inset-x-0 bottom-12 flex justify-center opacity-40">
                                     <div className="w-2 h-2 bg-white rounded-full" />
@@ -337,7 +343,7 @@ export default function FilePreview({
                         <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-6 md:p-10 border border-slate-100">
                             <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-50">
                                 <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
-                                    <FileText size={24} />
+                                    <FileTextIcon size={24} />
                                 </div>
                                 <div>
                                     <h3 className="text-xl font-bold text-slate-800">{file.name}</h3>
@@ -358,7 +364,7 @@ export default function FilePreview({
                 return (
                     <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-white/50 backdrop-blur-md">
                         <div className="w-32 h-32 bg-slate-100 rounded-[40px] flex items-center justify-center mb-8 text-slate-300">
-                            <FileText size={56} className="opacity-40" />
+                            <FileTextIcon size={56} className="opacity-40" />
                         </div>
                         <h3 className="text-3xl font-black text-slate-800 mb-3">Preview não disponível</h3>
                         <p className="text-slate-500 max-w-md mx-auto mb-10 font-medium leading-relaxed">
@@ -379,8 +385,8 @@ export default function FilePreview({
     return (
         <AnimatePresence>
             {/* Hidden Preload Images */}
-            {nextViewUrl && <img src={nextViewUrl} style={{ display: 'none' }} alt="preload-next" />}
-            {prevViewUrl && <img src={prevViewUrl} style={{ display: 'none' }} alt="preload-prev" />}
+            {nextViewUrl && <Image src={nextViewUrl} width={1} height={1} alt="preload-next" className="hidden" unoptimized />}
+            {prevViewUrl && <Image src={prevViewUrl} width={1} height={1} alt="preload-prev" className="hidden" unoptimized />}
             <motion.div
                 variants={modalBackdrop}
                 initial="hidden"

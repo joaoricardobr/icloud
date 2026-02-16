@@ -1,6 +1,16 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { FileText, Image, Video, Music, File, Folder, HardDrive, FileArchive, Code } from "lucide-react";
+import {
+    FileText as FileTextIcon,
+    Image as ImageIcon,
+    Video as VideoIcon,
+    Music as MusicIcon,
+    File as FileIcon,
+    Folder,
+    HardDrive,
+    FileArchive,
+    Code
+} from "lucide-react";
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -48,22 +58,22 @@ export function getFileIcon(fileName: string, isDirectory: boolean = false) {
 
     // Images
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'ico'].includes(ext)) {
-        return Image;
+        return ImageIcon;
     }
 
     // Videos
     if (['mp4', 'mkv', 'mov', 'avi', 'wmv', 'flv', 'webm', 'm4v', 'mpeg'].includes(ext)) {
-        return Video;
+        return VideoIcon;
     }
 
     // Music
     if (['mp3', 'wav', 'flac', 'm4a', 'ogg', 'aac', 'wma', 'opus'].includes(ext)) {
-        return Music;
+        return MusicIcon;
     }
 
     // Documents
     if (['pdf', 'doc', 'docx', 'txt', 'xlsx', 'pptx', 'csv', 'rtf', 'odt'].includes(ext)) {
-        return FileText;
+        return FileTextIcon;
     }
 
     // Archives
@@ -76,7 +86,7 @@ export function getFileIcon(fileName: string, isDirectory: boolean = false) {
         return Code;
     }
 
-    return File;
+    return FileIcon;
 }
 
 export function getFileColor(fileName: string, isDirectory: boolean = false): string {
@@ -115,15 +125,22 @@ export function getCategoryIcon(category: string) {
     const normalized = category.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     switch (normalized) {
         case 'imagens':
-            return Image;
+        case 'image':
+        case 'images':
+            return ImageIcon;
         case 'videos':
-            return Video;
+        case 'video':
+            return VideoIcon;
         case 'musicas':
-            return Music;
+        case 'music':
+        case 'audio':
+            return MusicIcon;
         case 'documentos':
-            return FileText;
+        case 'documents':
+        case 'docs':
+            return FileTextIcon;
         default:
-            return File;
+            return FileIcon;
     }
 }
 

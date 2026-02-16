@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
@@ -14,7 +14,7 @@ import FilePreview from "./FilePreview";
 import CreateFolderModal from "./modals/CreateFolderModal";
 import UploadModal from "./modals/UploadModal";
 import SettingsPage from "@/app/dashboard/settings/page";
-import { pageTransition, staggerContainer, slideInFromTop } from "@/lib/animations";
+import { pageTransition, staggerContainer } from "@/lib/animations";
 import {
     RefreshCw,
     HardDrive,
@@ -22,15 +22,15 @@ import {
     CheckCircle2,
     AlertCircle,
     XCircle,
-    History,
+    History as HistoryIcon,
     Clock,
     UploadCloud,
     X,
     RotateCcw,
-    File,
+    File as FileIcon,
     ChevronRight,
-    Search,
-    Filter,
+    Search as SearchIcon,
+    Filter as FilterIcon,
     ArrowUpRight
 } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
@@ -131,6 +131,12 @@ export default function Dashboard() {
     const [uploadHistory, setUploadHistory] = useState<UploadHistoryItem[]>([]);
     const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
 
+    // Refs for stable dependency checks
+    const hasDataRef = useRef(false);
+    useEffect(() => {
+        hasDataRef.current = files.length > 0 || disks.length > 0;
+    }, [files, disks]);
+
     // Persistence for Upload History
     useEffect(() => {
         const savedHistory = localStorage.getItem("upload_history");
@@ -164,12 +170,44 @@ export default function Dashboard() {
         }, 5000);
     };
 
+    // Filtered and Sorted files (moved up to avoid "used before declaration" in callbacks)
+    const filteredFiles = files
+        .filter(file => {
+            const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+            let matchesFilter = true;
+            if (filterType === "folders") matchesFilter = file.isDirectory;
+            else if (filterType === "files") matchesFilter = !file.isDirectory;
+            else if (filterType === "favorite") matchesFilter = !!file.isFavorite;
+            else if (filterType !== "all") {
+                // Category-based filtering (image, video, audio, document)
+                const ext = file.name.split('.').pop()?.toLowerCase() || '';
+                const images = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+                const videos = ['mp4', 'mkv', 'mov', 'avi', 'webm'];
+                const audios = ['mp3', 'wav', 'flac', 'm4a', 'ogg'];
+                const docs = ['pdf', 'doc', 'docx', 'txt', 'xlsx', 'pptx'];
+
+                if (filterType === "image") matchesFilter = images.includes(ext);
+                else if (filterType === "video") matchesFilter = videos.includes(ext);
+                else if (filterType === "audio") matchesFilter = audios.includes(ext);
+                else if (filterType === "document") matchesFilter = docs.includes(ext);
+            }
+
+            return matchesSearch && matchesFilter;
+        })
+        .sort((a, b) => {
+            if (sortBy === "name") return a.name.localeCompare(b.name);
+            if (sortBy === "size") return b.size - a.size;
+            if (sortBy === "date") return new Date(b.mtime).getTime() - new Date(a.mtime).getTime();
+            return 0;
+        });
+
     // Fetch data from backend
     const fetchData = useCallback(async (path: string = "", mode?: string, category?: string) => {
         const cacheKey = `data_${path || 'root'}_${mode || 'none'}_${category || 'none'}`;
 
-        // Flicker Fix: If we already have some data, don't show full loading screen
-        const hasData = files.length > 0 || disks.length > 0;
+        // Use ref to check if we have data without triggering callback changes
+        const hasData = hasDataRef.current;
 
         // 1. Try Load from Cache First (Offline Support)
         if (!hasData) {
@@ -204,6 +242,7 @@ export default function Dashboard() {
             const data = response.data;
 
             const filesData = data.files || [];
+            // Extract stats directly from the /files response
             const disksData = data.stats?.allDisks || [];
             const categoriesData = data.stats?.categories || null;
 
@@ -217,8 +256,7 @@ export default function Dashboard() {
             setCache(cacheKey, data);
 
             if (!mode && !category) {
-                // Path already set optimistically in navigateTo, 
-                // but we ensure it matches the actual fetched path here.
+                // Path already set optimistically in navigateTo
                 setCurrentPath(path);
             }
 
@@ -226,8 +264,6 @@ export default function Dashboard() {
             console.error("[Dashboard] Error fetching files:", err);
             // Only show error if we have NO data (live or cached)
             if (files.length === 0 && disks.length === 0) {
-                // Double check if cache failed too (inner check above handles it, but maybe cache was empty)
-                // We try to get cache one last time if we haven't already? No, we did.
                 setError("Não foi possível conectar ao servidor. Verifique se o backend está rodando.");
             }
             setServerStatus("offline");
@@ -235,7 +271,7 @@ export default function Dashboard() {
             setLoading(false);
             setIsRefreshing(false);
         }
-    }, []); // Removed files.length/disks.length to stop the infinite loop
+    }, []); // eslint-disable-next-line react-hooks/exhaustive-deps
 
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
@@ -249,16 +285,15 @@ export default function Dashboard() {
     }, [fetchData, currentPath, activeView, activeCategory]);
 
     // Navigate to a path
-    // Navigate to a path
-    const navigateTo = (path: string) => {
+    const navigateTo = useCallback((path: string) => {
         setActiveView("home");
         setActiveCategory("");
         setCurrentPath(path); // Optimistic update to switch view immediately
         fetchData(path);
-    };
+    }, [fetchData]);
 
     // Change view
-    const handleViewChange = (view: "home" | "recent" | "favorites" | "trash" | "settings" | "explorer") => {
+    const handleViewChange = useCallback((view: "home" | "recent" | "favorites" | "trash" | "settings" | "explorer") => {
         setActiveView(view);
         setActiveCategory("");
         setSearchQuery("");
@@ -278,19 +313,27 @@ export default function Dashboard() {
         } else {
             fetchData("", view);
         }
-    };
+    }, [fetchData]);
 
     // Change category
-    const handleCategoryChange = (category: string) => {
+    const handleCategoryChange = useCallback((category: string) => {
         setActiveView("category");
         setActiveCategory(category);
         setSearchQuery("");
         setFilterType("all");
         fetchData("", undefined, category);
-    };
+    }, [fetchData]);
+
+    const handleSelectionChange = useCallback((path: string) => {
+        setSelectedPaths(prev =>
+            prev.includes(path)
+                ? prev.filter(p => p !== path)
+                : [...prev, path]
+        );
+    }, []);
 
     // Handle file click
-    const handleFileClick = (file: FileItem) => {
+    const handleFileClick = useCallback((file: FileItem) => {
         if (selectedPaths.length > 0) {
             handleSelectionChange(file.path);
             return;
@@ -303,25 +346,17 @@ export default function Dashboard() {
             setPreviewFile(file);
             setPreviewIndex(fileIndex);
         }
-    };
+    }, [selectedPaths.length, filteredFiles, navigateTo, handleSelectionChange]);
 
-    const handleSelectionChange = (path: string) => {
-        setSelectedPaths(prev =>
-            prev.includes(path)
-                ? prev.filter(p => p !== path)
-                : [...prev, path]
-        );
-    };
-
-    const handleSelectAll = (select: boolean) => {
-        if (select) {
-            setSelectedPaths(filteredFiles.map(f => f.path));
-        } else {
+    const handleSelectAll = useCallback(() => {
+        if (selectedPaths.length === filteredFiles.length) {
             setSelectedPaths([]);
+        } else {
+            setSelectedPaths(filteredFiles.map(f => f.path));
         }
-    };
+    }, [selectedPaths.length, filteredFiles]);
 
-    const handleDownloadZip = async () => {
+    const handleDownloadZip = useCallback(async () => {
         if (selectedPaths.length === 0) return;
 
         try {
@@ -340,9 +375,9 @@ export default function Dashboard() {
         } catch (err: any) {
             alert("Erro ao gerar ZIP: " + (err.response?.data?.error || err.message));
         }
-    };
+    }, [selectedPaths]);
 
-    const handleShare = async (file?: FileItem) => {
+    const handleShare = useCallback(async (file?: FileItem) => {
         const pathsToShare = file ? [file.path] : selectedPaths;
         if (pathsToShare.length === 0) return;
 
@@ -359,7 +394,7 @@ export default function Dashboard() {
         } catch (err) {
             alert("Erro ao copiar link.");
         }
-    };
+    }, [selectedPaths]);
 
     // File Operations
     const handleUploadClick = (filesToUpload: FileList | null) => {
@@ -459,25 +494,17 @@ export default function Dashboard() {
         }
     };
 
-    const handleNewFolder = async (nameOverride?: string, pathOverride?: string) => {
-        let name = nameOverride;
-        let path = pathOverride !== undefined ? pathOverride : currentPath;
-
-        if (!name) {
-            name = prompt("Nome da nova pasta:") || undefined;
-        }
-
-        if (!name) return;
-
+    const handleNewFolder = useCallback(async (name: string) => {
         try {
-            await api.post("create-folder", { path, name });
+            await api.post("mkdir", { path: currentPath, name });
             fetchData(currentPath, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
+            setShowCreateFolderModal(false);
         } catch (err: any) {
             alert("Erro ao criar pasta: " + (err.response?.data?.error || err.message));
         }
-    };
+    }, [fetchData, currentPath, activeView, activeCategory]);
 
-    const handleToggleFavorite = async (file: FileItem) => {
+    const handleToggleFavorite = useCallback(async (file: FileItem) => {
         try {
             await api.post("favorite", { path: file.path });
             // Refresh current view
@@ -485,9 +512,9 @@ export default function Dashboard() {
         } catch (err: any) {
             console.error("Error toggling favorite:", err);
         }
-    };
+    }, [fetchData, currentPath, activeView, activeCategory]);
 
-    const handleDelete = async (file: FileItem) => {
+    const handleDelete = useCallback(async (file: FileItem) => {
         if (activeView === "trash") {
             if (!confirm(`Tem certeza que deseja excluir "${file.name}" PERMANENTEMENTE? Esta ação não pode ser desfeita.`)) return;
             try {
@@ -507,9 +534,9 @@ export default function Dashboard() {
         } catch (err: any) {
             alert("Erro ao excluir: " + (err.response?.data?.error || err.message));
         }
-    };
+    }, [fetchData, currentPath, activeView, activeCategory]);
 
-    const handleEmptyTrash = async () => {
+    const handleEmptyTrash = useCallback(async () => {
         if (!confirm("Tem certeza que deseja ESVAZIAR A LIXEIRA? Todos os itens serão apagados permanentemente.")) return;
 
         try {
@@ -518,39 +545,7 @@ export default function Dashboard() {
         } catch (err: any) {
             alert("Erro ao esvaziar lixeira: " + (err.response?.data?.error || err.message));
         }
-    };
-
-    // Filtered and Sorted files
-    const filteredFiles = files
-        .filter(file => {
-            const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase());
-
-            let matchesFilter = true;
-            if (filterType === "folders") matchesFilter = file.isDirectory;
-            else if (filterType === "files") matchesFilter = !file.isDirectory;
-            else if (filterType === "favorite") matchesFilter = !!file.isFavorite;
-            else if (filterType !== "all") {
-                // Category-based filtering (image, video, audio, document)
-                const ext = file.name.split('.').pop()?.toLowerCase() || '';
-                const images = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
-                const videos = ['mp4', 'mkv', 'mov', 'avi', 'webm'];
-                const audios = ['mp3', 'wav', 'flac', 'm4a', 'ogg'];
-                const docs = ['pdf', 'doc', 'docx', 'txt', 'xlsx', 'pptx'];
-
-                if (filterType === "image") matchesFilter = images.includes(ext);
-                else if (filterType === "video") matchesFilter = videos.includes(ext);
-                else if (filterType === "audio") matchesFilter = audios.includes(ext);
-                else if (filterType === "document") matchesFilter = docs.includes(ext);
-            }
-
-            return matchesSearch && matchesFilter;
-        })
-        .sort((a, b) => {
-            if (sortBy === "name") return a.name.localeCompare(b.name);
-            if (sortBy === "size") return b.size - a.size;
-            if (sortBy === "date") return new Date(b.mtime).getTime() - new Date(a.mtime).getTime();
-            return 0;
-        });
+    }, [fetchData]);
 
     // Navigate to next file in preview
     const handleNextFile = () => {
@@ -672,6 +667,10 @@ export default function Dashboard() {
         window.location.href = "/";
     };
 
+    // Use a ref to store current path for the interval to avoid depending on it directly
+    const pathRef = useRef(currentPath);
+    useEffect(() => { pathRef.current = currentPath; }, [currentPath]);
+
     // Initial load and SSE Connection
     useEffect(() => {
         let eventSource: EventSource | null = null;
@@ -710,14 +709,6 @@ export default function Dashboard() {
             }
         }, 100);
 
-        // Automatic refresh every 5 minutes if window is focused (fallback)
-        const refreshInterval = setInterval(() => {
-            if (document.visibilityState === 'visible' && api.defaults.baseURL) {
-                console.log("🔄 Auto-refreshing connectivity...");
-                handleRefresh();
-            }
-        }, 5 * 60 * 1000);
-
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible' && api.defaults.baseURL) {
                 handleRefresh();
@@ -729,11 +720,21 @@ export default function Dashboard() {
         return () => {
             if (waitForApi) clearInterval(waitForApi);
             if (eventSource) eventSource.close();
-            clearInterval(refreshInterval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-        // Removed fetchData and handleRefresh from deps to prevent re-running on every file/disk change
-    }, [currentPath, activeView, activeCategory]);
+    }, [fetchData, handleRefresh, activeView, activeCategory, currentPath]);
+
+    // Re-fetch data every 30 seconds
+    useEffect(() => {
+        const refreshInterval = setInterval(() => {
+            if (document.visibilityState === 'visible' && api.defaults.baseURL) {
+                console.log("🔄 Auto-refreshing connectivity...");
+                fetchData(pathRef.current, activeView !== "home" ? activeView : undefined, activeCategory || undefined);
+            }
+        }, 30000);
+
+        return () => clearInterval(refreshInterval);
+    }, [fetchData, activeView, activeCategory]);
 
     // Check Server Status
     useEffect(() => {
@@ -854,7 +855,7 @@ export default function Dashboard() {
                                 </motion.div>
                             )}
 
-                            {/* Filters Bar (Internal) */}
+                            {/* FilterIcons Bar (Internal) */}
                             {activeView !== "home" || currentPath ? (
                                 <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
                                     <h2 className="text-2xl font-black text-slate-800 dark:text-white">
@@ -1180,7 +1181,7 @@ export default function Dashboard() {
                             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 backdrop-blur">
                                 <div className="flex items-center gap-3">
                                     <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl">
-                                        <History className="text-blue-600 dark:text-blue-400" size={20} />
+                                        <HistoryIcon className="text-blue-600 dark:text-blue-400" size={20} />
                                     </div>
                                     <h3 className="font-black text-slate-800 dark:text-white tracking-tight uppercase text-sm">Histórico de Uploads</h3>
                                 </div>
@@ -1244,7 +1245,7 @@ export default function Dashboard() {
                                                     )}
                                                 </div>
 
-                                                <div className="flex flex-col gap-2">
+                                                <div className="flex-col gap-2 flex">
                                                     {item.status === "error" && (
                                                         <button
                                                             onClick={() => handleRetryUpload(item)}
@@ -1361,4 +1362,6 @@ const LoadingSkeleton: React.FC = () => {
             </div>
         </div>
     );
-}
+};
+
+export { LoadingSkeleton };

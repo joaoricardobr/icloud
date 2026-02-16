@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { staggerItem } from '@/lib/animations';
-import { Clipboard, Check } from 'lucide-react';
+import { Clipboard as ClipboardIcon, Check } from 'lucide-react';
 import api from '@/lib/api';
 
 const LogTerminal = () => {
@@ -14,7 +14,7 @@ const LogTerminal = () => {
     const fetchLogs = async () => {
         try {
             // This endpoint needs to be created in the backend
-            const response = await api.get('/logs'); 
+            const response = await api.get('/logs');
             setLogs(response.data.logs);
         } catch (error) {
             setLogs('Error fetching logs. Is the backend endpoint ready?');
@@ -51,7 +51,7 @@ const LogTerminal = () => {
                 </div>
                 <h3 className="text-sm font-bold text-gray-300">Backend Logs</h3>
                 <button onClick={handleCopy} className="text-gray-400 hover:text-white transition-colors">
-                    {copied ? <Check size={18} /> : <Clipboard size={18} />}
+                    {copied ? <Check size={18} /> : <ClipboardIcon size={18} />}
                 </button>
             </div>
             <div ref={terminalRef} className="p-4 text-sm text-green-400 font-mono overflow-y-auto flex-1 whitespace-pre-wrap scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800">

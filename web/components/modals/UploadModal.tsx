@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Upload, Computer, HardDrive, File, Folder, Check, AlertCircle, Plus, UploadCloud } from "lucide-react";
+import { X, Upload, Computer, HardDrive, File as FileIcon, Folder, Check, AlertCircle, Plus, UploadCloud } from "lucide-react";
 import { modalBackdrop, modalContent } from "@/lib/animations";
 import FolderPicker from "../FolderPicker";
 import { cn, formatBytes } from "@/lib/utils";
@@ -199,7 +199,7 @@ export default function UploadModal({
                                                 {filesToUpload.map((f, i) => (
                                                     <div key={i} className="flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-50 dark:border-slate-700 group">
                                                         <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400">
-                                                            <File size={20} />
+                                                            <FileIcon size={20} />
                                                         </div>
                                                         <div className="flex-1 min-w-0">
                                                             <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{f.name}</p>

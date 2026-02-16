@@ -10,6 +10,8 @@ const api = axios.create({
     },
 });
 
+import { onAuthStateChanged } from "firebase/auth";
+
 // Dynamic BaseURL Discovery
 const updateBaseURL = async (retryCount = 0) => {
     // Priority 1: If we are on localhost, try the local backend first
@@ -54,9 +56,16 @@ const updateBaseURL = async (retryCount = 0) => {
 // Export discovery for external triggering
 export const refreshApiConfig = () => updateBaseURL();
 
-// Start discovery immediately
+// Start discovery only after auth is ready
 if (typeof window !== "undefined") {
-    updateBaseURL();
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            console.log("👤 Usuário autenticado. Iniciando busca de configuração da API...");
+            updateBaseURL();
+        } else {
+            console.log("🔒 Usuário não autenticado. Aguardando login para buscar configuração.");
+        }
+    });
 }
 
 api.interceptors.request.use(async (config: any) => {

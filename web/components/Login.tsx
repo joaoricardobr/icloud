@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Mail,
-    Lock,
+    Lock as LockIcon,
     ArrowRight,
     ShieldCheck,
     Github,
