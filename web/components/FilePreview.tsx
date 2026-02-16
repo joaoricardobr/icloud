@@ -36,6 +36,8 @@ interface FilePreviewProps {
     onPrevious?: () => void;
     hasNext?: boolean;
     hasPrevious?: boolean;
+    nextFile?: { name: string; path: string } | null;
+    prevFile?: { name: string; path: string } | null;
 }
 
 export default function FilePreview({
@@ -44,7 +46,9 @@ export default function FilePreview({
     onNext,
     onPrevious,
     hasNext = false,
-    hasPrevious = false
+    hasPrevious = false,
+    nextFile = null,
+    prevFile = null
 }: FilePreviewProps) {
     const [zoom, setZoom] = useState(100);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -54,6 +58,7 @@ export default function FilePreview({
     const [duration, setDuration] = useState(0);
     const audioRef = useRef<HTMLAudioElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
     const [zoomMode, setZoomMode] = useState<"fit" | "original">("original");
 
@@ -64,6 +69,7 @@ export default function FilePreview({
         setError("");
         setIsPlaying(false);
         setCurrentTime(0);
+        setIsLoading(true);
     }, [file]);
 
     // Close on ESC key
@@ -106,6 +112,10 @@ export default function FilePreview({
     const viewUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}&view=true`;
     const downloadUrl = `${api.defaults.baseURL}/download?path=${encodeURIComponent(file.path)}`;
 
+    // Preload URLs
+    const nextViewUrl = nextFile ? `${api.defaults.baseURL}/download?path=${encodeURIComponent(nextFile.path)}&view=true` : null;
+    const prevViewUrl = prevFile ? `${api.defaults.baseURL}/download?path=${encodeURIComponent(prevFile.path)}&view=true` : null;
+
     const handleDownload = () => {
         const link = document.createElement('a');
         link.href = downloadUrl;
@@ -124,28 +134,82 @@ export default function FilePreview({
     const renderPreview = () => {
         switch (fileType) {
             case 'image':
+                const imageHandleWheel = (e: React.WheelEvent) => {
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        const delta = -e.deltaY;
+                        const factor = delta > 0 ? 1.1 : 0.9;
+                        setZoom(prev => {
+                            const newZoom = Math.round(prev * factor);
+                            return Math.min(500, Math.max(10, newZoom));
+                        });
+                        if (zoomMode === 'fit') setZoomMode('original');
+                    }
+                };
+
+                const handleImageDragEnd = (event: any, info: any) => {
+                    const threshold = 100;
+                    if (zoom <= 100) {
+                        if (info.offset.x > threshold && hasPrevious && onPrevious) {
+                            onPrevious();
+                        } else if (info.offset.x < -threshold && hasNext && onNext) {
+                            onNext();
+                        }
+                    }
+                };
+
                 return (
-                    <div className={cn(
-                        "flex items-center justify-center h-full overflow-auto scrollbar-hide bg-slate-900/5",
-                        zoomMode === "original" ? "items-start justify-start cursor-zoom-out" : "cursor-zoom-in"
-                    )}
-                        onClick={() => setZoomMode(prev => prev === "fit" ? "original" : "fit")}
+                    <div
+                        className={cn(
+                            "flex items-center justify-center h-full overflow-hidden bg-slate-900/10 select-none relative",
+                            zoomMode === "original" || zoom > 100 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"
+                        )}
+                        onWheel={imageHandleWheel}
                     >
+                        {isLoading && (
+                            <div className="absolute inset-0 flex items-center justify-center z-10">
+                                <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                    className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full font-black"
+                                />
+                            </div>
+                        )}
                         <motion.img
+                            drag
+                            dragConstraints={zoom > 100 ? { left: -5000, right: 5000, top: -5000, bottom: 5000 } : { left: 0, right: 0, top: 0, bottom: 0 }}
+                            dragElastic={zoom > 100 ? 0 : 0.2}
+                            dragMomentum={zoom > 100}
+                            onDragEnd={handleImageDragEnd}
+                            onDoubleClick={() => {
+                                if (zoom > 100) {
+                                    setZoom(100);
+                                    setZoomMode("fit");
+                                } else {
+                                    setZoom(200);
+                                    setZoomMode("original");
+                                }
+                            }}
                             src={viewUrl}
                             alt={file.name}
+                            onLoad={() => setIsLoading(false)}
                             className={cn(
-                                "shadow-2xl transition-all duration-300",
-                                zoomMode === "fit" ? "max-w-full max-h-full object-contain rounded-2xl" : "max-w-none max-h-none"
+                                "shadow-2xl transition-all duration-300 ease-out",
+                                isLoading ? "opacity-0" : "opacity-100",
+                                zoomMode === "fit" && zoom <= 100 ? "max-w-full max-h-full object-contain rounded-2xl" : "max-w-none max-h-none"
                             )}
                             style={{
-                                ...(zoomMode === "fit" ? { transform: `scale(${zoom / 100})` } : {}),
-                                imageRendering: 'auto'
+                                scale: zoom / 100,
+                                imageRendering: 'auto',
+                                touchAction: 'none'
                             }}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: isLoading ? 0 : 1 }}
                             transition={{ duration: 0.3 }}
-                            onError={() => setError("Erro ao carregar imagem")}
+                            onError={() => {
+                                setError("Erro ao carregar imagem");
+                                setIsLoading(false);
+                            }}
                         />
                     </div>
                 );
@@ -314,6 +378,9 @@ export default function FilePreview({
 
     return (
         <AnimatePresence>
+            {/* Hidden Preload Images */}
+            {nextViewUrl && <img src={nextViewUrl} style={{ display: 'none' }} alt="preload-next" />}
+            {prevViewUrl && <img src={prevViewUrl} style={{ display: 'none' }} alt="preload-prev" />}
             <motion.div
                 variants={modalBackdrop}
                 initial="hidden"
@@ -333,7 +400,7 @@ export default function FilePreview({
                     {/* Header */}
                     <div className="flex items-center justify-between p-5 md:p-7 border-b border-white bg-white/50 backdrop-blur top-0 z-50">
                         <div className="flex-1 min-w-0 pr-4">
-                            <h2 className="text-lg md:text-xl font-black text-slate-800 truncate tracking-tight">{file.name}</h2>
+                            <h2 className="text-xl md:text-2xl font-black text-slate-900 truncate tracking-tighter">{file.name}</h2>
                             <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
                                 {formatBytes(file.size)} • {new Date(file.mtime).toLocaleDateString('pt-BR')}
                             </p>
@@ -344,7 +411,15 @@ export default function FilePreview({
                             {fileType === 'image' && (
                                 <div className="hidden md:flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-100 mr-2 shadow-sm">
                                     <button
-                                        onClick={() => setZoomMode(zoomMode === "fit" ? "original" : "fit")}
+                                        onClick={() => {
+                                            if (zoomMode === 'fit') {
+                                                setZoomMode('original');
+                                                setZoom(100);
+                                            } else {
+                                                setZoomMode('fit');
+                                                setZoom(100);
+                                            }
+                                        }}
                                         className={cn(
                                             "p-2 rounded-xl transition-all flex items-center gap-2 px-3",
                                             zoomMode === "original" ? "bg-slate-900 text-white" : "hover:bg-slate-50 text-slate-500"
@@ -358,19 +433,19 @@ export default function FilePreview({
                                     </button>
                                     <div className="w-px h-4 bg-slate-100 mx-1" />
                                     <button
-                                        onClick={() => setZoom(Math.max(25, zoom - 25))}
-                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600 disabled:opacity-30"
-                                        disabled={zoomMode === "original"}
+                                        onClick={() => setZoom(Math.max(10, zoom - 25))}
+                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
+                                        title="Diminuir Zoom"
                                     >
                                         <ZoomOut size={18} />
                                     </button>
-                                    <span className="text-xs font-black min-w-[3rem] text-center text-slate-700">
-                                        {zoomMode === "original" ? "1:1" : `${zoom}%`}
+                                    <span className="text-xs font-black min-w-[3.5rem] text-center text-slate-700 tabular-nums">
+                                        {zoom}%
                                     </span>
                                     <button
-                                        onClick={() => setZoom(Math.min(300, zoom + 25))}
-                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600 disabled:opacity-30"
-                                        disabled={zoomMode === "original"}
+                                        onClick={() => setZoom(Math.min(500, zoom + 25))}
+                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
+                                        title="Aumentar Zoom"
                                     >
                                         <ZoomIn size={18} />
                                     </button>

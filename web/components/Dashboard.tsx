@@ -484,6 +484,20 @@ export default function Dashboard() {
         return false;
     };
 
+    const getNextPreviewFile = () => {
+        for (let i = previewIndex + 1; i < filteredFiles.length; i++) {
+            if (!filteredFiles[i].isDirectory) return filteredFiles[i];
+        }
+        return null;
+    };
+
+    const getPrevPreviewFile = () => {
+        for (let i = previewIndex - 1; i >= 0; i--) {
+            if (!filteredFiles[i].isDirectory) return filteredFiles[i];
+        }
+        return null;
+    };
+
     // Generate breadcrumbs
     const getBreadcrumbs = () => {
         if (activeView === "category") {
@@ -1015,6 +1029,8 @@ export default function Dashboard() {
                     onPrevious={hasPreviousFile() ? handlePreviousFile : undefined}
                     hasNext={hasNextFile()}
                     hasPrevious={hasPreviousFile()}
+                    nextFile={getNextPreviewFile()}
+                    prevFile={getPrevPreviewFile()}
                 />
             )}
 
